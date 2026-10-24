@@ -1,0 +1,12 @@
+#!/bin/sh
+# Refuses a commit that stages the game, something made from it, a binary, a capture or a secret.
+# Installed with tools/install_hooks.bat (git config core.hooksPath .githooks).
+if command -v python >/dev/null 2>&1; then
+    PY=python
+elif command -v py >/dev/null 2>&1; then
+    PY="py -3"
+else
+    echo "pre-commit: Python 3 was not found, so the repo guard cannot run. Install Python 3.9 or newer." >&2
+    exit 1
+fi
+exec $PY tools/check_repo_clean.py --staged

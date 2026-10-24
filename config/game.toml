@@ -1,0 +1,699 @@
+# Recompiler input for default.xbe, written by xbe_symbols
+
+[[hook]]
+at = 0x004085D7
+call = "Mc3ReadApuCounterEax"
+on_true = 0x004085DC
+
+[[hook]]
+at = 0x0044632A
+call = "Mc3ReadApuCounterEbx"
+on_true = 0x00446330
+
+[[hook]]
+at = 0x0001FA48
+call = "Mc3MainLoopPadProbe"
+
+[[hook]]
+at = 0x0017CF50
+call = "Mc3TitleUpdateProbe"
+
+[[hook]]
+at = 0x0017D120
+call = "Mc3TitleEventProbe"
+
+[[hook]]
+at = 0x00139730
+call = "Mc3FlashDrawProbe"
+
+[[hook]]
+at = 0x00154B20
+call = "Mc3MenuDrawProbe"
+
+[[hook]]
+at = 0x00065B9F
+call = "Mc3FlashNodeDrawProbe"
+
+# Temporary MC3-0015 allocation diagnostic.
+[[hook]]
+at = 0x001B3B90
+call = "Mc3EnhancedTrafficAllocationProbe"
+
+# Opt-in native vehCar setup checkpoints for MC3-0015.
+[[hook]]
+at = 0x001FA9C0
+call = "Mc3EnhancedTrafficBoundary00"
+[[hook]]
+at = 0x001FA9D9
+call = "Mc3EnhancedTrafficBoundary01"
+[[hook]]
+at = 0x001FA9F8
+call = "Mc3EnhancedTrafficBoundary02"
+[[hook]]
+at = 0x001FAA0D
+call = "Mc3EnhancedTrafficBoundary03"
+[[hook]]
+at = 0x001FAA15
+call = "Mc3EnhancedTrafficBoundary04"
+[[hook]]
+at = 0x001FAA1D
+call = "Mc3EnhancedTrafficBoundary05"
+[[hook]]
+at = 0x001FAA25
+call = "Mc3EnhancedTrafficBoundary06"
+[[hook]]
+at = 0x001FAA2D
+call = "Mc3EnhancedTrafficBoundary07"
+[[hook]]
+at = 0x001FAA35
+call = "Mc3EnhancedTrafficBoundary08"
+[[hook]]
+at = 0x001FAA3D
+call = "Mc3EnhancedTrafficBoundary09"
+[[hook]]
+at = 0x001FAA45
+call = "Mc3EnhancedTrafficBoundary10"
+[[hook]]
+at = 0x001FAA4D
+call = "Mc3EnhancedTrafficBoundary11"
+[[hook]]
+at = 0x001FAA55
+call = "Mc3EnhancedTrafficBoundary12"
+[[hook]]
+at = 0x001FAA5D
+call = "Mc3EnhancedTrafficBoundary13"
+[[hook]]
+at = 0x001FAA64
+call = "Mc3EnhancedTrafficBoundary14"
+
+# Native 0x121150 appends into a fixed four-word table during our extra Init.
+[[hook]]
+at = 0x00121249
+call = "Mc3EnhancedTrafficBoundedSetupIndex"
+on_true = 0x0012124B
+[[hook]]
+at = 0x001212A0
+call = "Mc3EnhancedTrafficBoundedSetupIndex"
+on_true = 0x001212A2
+[[hook]]
+at = 0x001212F5
+call = "Mc3EnhancedTrafficBoundedSetupIndex"
+on_true = 0x001212F7
+[[hook]]
+at = 0x00121351
+call = "Mc3EnhancedTrafficBoundedSetupIndex"
+on_true = 0x00121353
+[[hook]]
+at = 0x001213D9
+call = "Mc3EnhancedTrafficBoundedSetupIndex"
+on_true = 0x001213DB
+
+# Release complete traffic before city shutdown deletes its dependencies.
+[[hook]]
+at = 0x00029690
+call = "Mc3EnhancedTrafficCityExit"
+
+# The bridge already removed these ambient phInsts; keep native cleanup.
+[[hook]]
+at = 0x0007971F
+call = "Mc3EnhancedTrafficDetachedAmbientRemoval"
+on_true = 0x00079722
+
+# Temporary diagnostic for other invalid native RemoveEntry callers.
+[[hook]]
+at = 0x002AD320
+call = "Mc3EnhancedTrafficPhysicsRemoveProbe"
+
+# MC3-0015: full-vehicle enhanced traffic bridge; inert in legacy/hybrid.
+# Opt-in read-only trace of the native car resource path before lookup.
+[[hook]]
+at = 0x00105B36
+call = "Mc3EnhancedTrafficResourcePathProbe"
+
+# Read-only result of the asset manager Open call for vehicle resources.
+[[hook]]
+at = 0x002126E8
+call = "Mc3EnhancedTrafficResourceOpenProbe"
+
+[[hook]]
+at = 0x0021270C
+call = "Mc3EnhancedTrafficResourceHeaderProbe"
+
+[[hook]]
+at = 0x000DFBAF
+call = "Mc3EnhancedTrafficShaderTypeProbe"
+
+[[hook]]
+at = 0x000DFB56
+call = "Mc3EnhancedTrafficShaderEntryProbe"
+
+[[hook]]
+at = 0x00105A74
+call = "Mc3EnhancedTrafficCarPageInProbe"
+
+[[hook]]
+at = 0x00105CA0
+call = "Mc3EnhancedTrafficPreloadEntryProbe"
+
+[[hook]]
+at = 0x00105B80
+call = "Mc3EnhancedTrafficResourceAcquireProbe"
+
+[[hook]]
+at = 0x00105E14
+call = "Mc3EnhancedTrafficPreloadResultProbe"
+
+[[hook]]
+at = 0x00212600
+call = "Mc3EnhancedTrafficAsyncTypeProbe"
+
+# 0x71AC0 is aiAmbientVehicle::Init's
+# shared entry (initial population and respawns); 0x1ED328 follows
+# aiOpponentFactory::Construct inside aiOpponent::Init.
+[[hook]]
+at = 0x0035D200
+call = "Mc3EnhancedTrafficVehicleManagerInit"
+
+[[hook]]
+at = 0x00071AC0
+call = "Mc3EnhancedTrafficAmbientSpawn"
+
+[[hook]]
+at = 0x0006C936
+call = "Mc3EnhancedTrafficAmbientInitial"
+
+  # Post-init city-load checkpoint; ESI owns the object pool and EBX is the
+  # current 0x21C-byte ambient offset.
+  [[hook]]
+  at = 0x0006C93B
+  call = "Mc3EnhancedTrafficAmbientInitialReady"
+
+[[hook]]
+at = 0x0006D843
+call = "Mc3EnhancedTrafficAmbientRespawn"
+
+  [[hook]]
+  at = 0x0006D848
+  call = "Mc3EnhancedTrafficAmbientRespawnReady"
+
+  # End of the concrete player-car constructor, before its tail return. This
+  # path is also reached through overlapping/indirect callers that can bypass
+  # the higher-level 0x13C8E0 decode.
+  [[hook]]
+  at = 0x002CBC33
+  call = "Mc3EnhancedTrafficCruiseLoadCheckpoint"
+
+[[hook]]
+at = 0x00073FF0
+call = "Mc3EnhancedTrafficAmbientRender"
+
+[[hook]]
+at = 0x00078940
+call = "Mc3EnhancedTrafficAmbientUpdate"
+on_true = 0x00078AD4
+
+[[hook]]
+at = 0x00079AB0
+call = "Mc3EnhancedTrafficAmbientDeactivate"
+
+[[hook]]
+at = 0x001ED2F0
+call = "Mc3EnhancedTrafficOpponentInitEntry"
+
+[[hook]]
+at = 0x001ED328
+call = "Mc3EnhancedTrafficOpponentBuilt"
+
+[[hook]]
+at = 0x001E4561
+call = "Mc3EnhancedTrafficOpponentManagerReady"
+
+[[hook]]
+at = 0x001E4413
+call = "Mc3EnhancedTrafficReserveSlots"
+
+[[hook]]
+at = 0x001E45F0
+call = "Mc3EnhancedTrafficReleaseSlots"
+
+[[hook]]
+at = 0x001E471C
+call = "Mc3EnhancedTrafficReleaseSlots"
+
+[[hook]]
+at = 0x00200F02
+call = "Mc3MenuVirtualDrawProbe"
+
+
+# Delta time for an unlocked frame rate (src/game/hooks.cpp)
+# MC2's Los Angeles drawn where mcCity::ModelDraw draws MC3's city (src/game/mc2_city.cpp, on with MC3_MC2_DIR)
+[[hook]]
+at = 0x0009B3C5
+call = "Mc2CityDraw"
+on_true = 0x0009B3CA
+
+[[hook]]
+at = 0x00092A48
+call = "Mc2CityHideList"
+on_true = 0x00092A78
+
+# MC2 career records do not own the MC3 event object called at 0x1CD835.
+# The block exists in overlapping recompiled entries, so hook its branch.
+[[hook]]
+at = 0x001CD816
+call = "Mc2CareerSkipEventObject"
+on_true = 0x001CD838
+
+# Los Angeles' own city slot (record 13) and its San Diego shell
+[[hook]]
+at = 0x0026F001
+call = "Mc2LaRegister"
+
+[[hook]]
+at = 0x001A2280
+call = "Mc2LaPaths"
+
+[[hook]]
+at = 0x0013B723
+call = "Mc2LaArcadeModulo"
+on_true = 0x0013B728
+
+[[hook]]
+at = 0x0013B72E
+call = "Mc2LaArcadeWrap"
+
+[[hook]]
+at = 0x00289CC0
+call = "Mc2LaUnlocked"
+on_true = 0x00289CC9
+
+[[hook]]
+at = 0x00061E00
+call = "Mc2LaAudioBank"
+on_true = 0x00061E11
+
+[[hook]]
+at = 0x00061DAC
+call = "Mc2LaAudioEntry"
+
+[[hook]]
+at = 0x000EA790
+call = "Mc2LaCityName"
+on_true = 0x000EA90F
+
+# Los Angeles' collision: MC2's losangeles.bnd parsed by the game in place of the city's bound
+[[hook]]
+at = 0x0002A3C6
+call = "Mc2LaBound"
+
+[[hook]]
+at = 0x000208D0
+call = "Mc3DtVariableStep"
+
+[[hook]]
+at = 0x00020893
+call = "Mc3DtNoRounding"
+on_true = 0x00020899
+
+[[hook]]
+at = 0x0001AD27
+call = "Mc3DtFlashA"
+on_true = 0x0001AD2C
+
+[[hook]]
+at = 0x0001BA4E
+call = "Mc3DtFlashB"
+on_true = 0x0001BA53
+
+[[hook]]
+at = 0x0001B7B7
+call = "Mc3DtFlashC1"
+on_true = 0x0001B7BC
+
+[[hook]]
+at = 0x0001B7C7
+call = "Mc3DtFlashC2"
+on_true = 0x0001B7CC
+
+[[hook]]
+at = 0x000C7A33
+call = "Mc3DtFlashD"
+on_true = 0x000C7A38
+
+[[hook]]
+at = 0x0009B279
+call = "Mc3DtSky"
+on_true = 0x0009B27E
+
+[[hook]]
+at = 0x002CDACA
+call = "Mc3DtReplayArg"
+on_true = 0x002CDACF
+
+[[hook]]
+at = 0x002CDAE6
+call = "Mc3DtReplayTimer"
+on_true = 0x002CDAEE
+
+[[hook]]
+at = 0x002C2686
+call = "Mc3DtCamera"
+on_true = 0x002C268B
+
+[[hook]]
+at = 0x00125CB0
+call = "Mc3DtGyro"
+on_true = 0x00125CB8
+
+[[hook]]
+at = 0x00125EBF
+call = "Mc3DtGyro"
+on_true = 0x00125EC7
+
+[[hook]]
+at = 0x0029FBA6
+call = "Mc3DtImpulse"
+on_true = 0x0029FBAE
+
+[[hook]]
+at = 0x0001F55D
+call = "Mc3DtFade"
+on_true = 0x0001F565
+
+[[hook]]
+at = 0x0001D21F
+call = "Mc3DtMusic"
+on_true = 0x0001D227
+
+[[hook]]
+at = 0x0015A799
+call = "Mc3DtFrontEndCamera"
+on_true = 0x0015A7A1
+
+[[hook]]
+at = 0x0022B18D
+call = "Mc3DtCreatureAnim"
+on_true = 0x0022B192
+
+[[hook]]
+at = 0x0015AE77
+call = "Mc3DtSubtitleDt"
+on_true = 0x0015AE7F
+
+[[hook]]
+at = 0x0015AE87
+call = "Mc3DtSubtitleRate"
+on_true = 0x0015AE8F
+
+[[hook]]
+at = 0x0015AED4
+call = "Mc3DtSubtitleDt"
+on_true = 0x0015AEDC
+
+[[hook]]
+at = 0x0015AEE4
+call = "Mc3DtSubtitleRate"
+on_true = 0x0015AEEC
+
+[xbe]
+path = "assets/default.xbe"
+title = 0x54540079
+entry = 0x1299F
+xdk = 5849
+out = "generated/game"
+partitions = 128
+code_sections = [".text", "D3DX", "XGRPH", "BINK", "BINK32", "BINK32A", "BINK16", "BINK4444", "BINK5551", "BINKYUY2", "BINK16MX", "BINK16X2", "BINK16M", "BINK32MX", "BINK32X2", "BINK32M", "DSOUND", "XNET", "XONLINE", "XACTENG", "D3D", "WMADEC", "XPP"]
+
+# extra entry points
+[functions]
+
+# functions the host replaces or calls by name, 0 where the image has none
+[symbols]
+_CIacos                                              = 0x2DC684
+_CIasin                                              = 0x2DCD24
+accept                                               = 0
+bind                                                 = 0x3CC070
+BinkDoFrame                                          = 0x3AD2C0
+BinkGetSummary                                       = 0
+BinkNextFrame                                        = 0x3AD8D0 # confirmed by the original DoFrame -> CopyToBuffer -> NextFrame call sequence
+BinkWait                                             = 0x3ACDF0 # one-argument timing predicate, polled by the movie player until it returns zero
+CDevice_KickOff                                      = 0x4163C0
+CDirectSoundStream_AddRef                            = 0x3C1310
+CDirectSoundStream_Discontinuity                     = 0x3C140C
+CDirectSoundStream_Flush                             = 0x3C1459
+CDirectSoundStream_FlushEx                           = 0x3C15BD
+CDirectSoundStream_GetInfo                           = 0x3C13A5
+CDirectSoundStream_GetStatus                         = 0x3C14A4
+CDirectSoundStream_GetVoiceProperties                = 0x3C22D4 # stream DSVOICEPROPS query; original follows the absent MCPX voice pointer
+CDirectSoundStream_Pause                             = 0x3C156C
+CDirectSoundStream_Process                           = 0x3C14F5
+CDirectSoundStream_Release                           = 0x3C1357
+CDirectSoundStream_SetFilter                         = 0x3C1DC1
+CDirectSoundStream_SetFormat                         = 0x3C2F0A
+CDirectSoundStream_SetFrequency                      = 0x3C19BD # 5849 variant: 0x4C-byte wrapper around the stream pitch setter
+CDirectSoundStream_SetHeadroom                       = 0x3C1E13
+CDirectSoundStream_SetI3DL2Source                    = 0
+CDirectSoundStream_SetLFO                            = 0x3C229E # stream counterpart of IDirectSoundBuffer_SetLFO at 0x3C20AC
+CDirectSoundStream_SetMaxDistance                    = 0
+CDirectSoundStream_SetMinDistance                    = 0
+CDirectSoundStream_SetMixBins                        = 0x3C286D
+CDirectSoundStream_SetMixBinVolumes                  = 0x3C1E65
+CDirectSoundStream_SetOutputBuffer                   = 0x3C2933 # 5849 stream thunk; host streams do not expose the Xbox voice object
+CDirectSoundStream_SetPitch                          = 0x3C2299 # writes the MCPX voice pitch field directly
+CDirectSoundStream_SetPosition                       = 0
+CDirectSoundStream_SetVelocity                       = 0
+CDirectSoundStream_SetVolume                         = 0x3C1CCB
+CDirectSoundStream_SetVoiceFlag                      = 0x3C22DE # private bool setter; toggles bit 0 at Xbox voice state +0x0B
+CDirectSoundStream_SetVoiceProperties                = 0x3C22D9 # private masked hardware-voice descriptor setter
+closesocket                                          = 0x3CC040
+connect                                              = 0x3CC07B
+crt_acos                                             = 0x2DC6A1
+crt_asin                                             = 0x2DCD41
+crt_atan                                             = 0
+crt_cos                                              = 0
+crt_log                                              = 0
+crt_log10                                            = 0
+crt_pow                                              = 0x2DC494
+crt_sin                                              = 0
+crt_sqrt                                             = 0
+crt_tan                                              = 0
+D3D_BlockOnResource                                  = 0x4168D0
+D3D_BlockOnTime                                      = 0x4165A0
+D3D_InitDefaultState                                 = 0x4194A0
+D3D_InternalAddRef                                   = 0x414590
+D3D_InternalRelease                                  = 0x414730
+D3D_KickOffAndWaitForIdle                            = 0x4168B0
+D3D_MakeRequestedSpace                               = 0x416710
+D3D_SetFence                                         = 0x4164E0
+D3DDevice_Begin                                      = 0x417AC0
+D3DDevice_BeginPush                                  = 0x416390
+D3DDevice_BlockOnFence                               = 0
+D3DDevice_BlockUntilVerticalBlank                    = 0x411570
+D3DDevice_Clear                                      = 0x4156A0
+D3DDevice_CopyRects                                  = 0x411A10
+D3DDevice_CreatePixelShader                          = 0x415A90
+D3DDevice_CreateVertexShader                         = 0x414D50
+D3DDevice_DeletePixelShader                          = 0x415AE0
+D3DDevice_DeleteVertexShader                         = 0x415420
+D3DDevice_DrawIndexedVertices                        = 0x417820
+D3DDevice_DrawIndexedVerticesUP                      = 0x4176E0
+D3DDevice_DrawVertices                               = 0
+D3DDevice_DrawVerticesUP                             = 0x417570
+D3DDevice_EnableOverlay                              = 0
+D3DDevice_End                                        = 0x417B00
+D3DDevice_EndPush                                    = 0x4163B0
+D3DDevice_FlushVertexCache                           = 0
+D3DDevice_GetBackBuffer2                             = 0x4119C0
+D3DDevice_GetDepthStencilSurface2                    = 0x411D60
+D3DDevice_GetRenderTarget2                           = 0x411D40
+D3DDevice_GetVertexShaderFunction                    = 0
+D3DDevice_InsertFence                                = 0
+D3DDevice_IsFencePending                             = 0
+D3DDevice_LightEnable                                = 0x412270
+D3DDevice_LoadVertexShader                           = 0x4151C0
+D3DDevice_MakeSpace                                  = 0x416850
+D3DDevice_PersistDisplay                             = 0
+D3DDevice_Release                                    = 0x411520
+D3DDevice_SelectVertexShader                         = 0x415220
+D3DDevice_SetFlickerFilter                           = 0x4115A0
+D3DDevice_SetGammaRamp                               = 0x4112C0
+D3DDevice_SetIndices                                 = 0x412610
+D3DDevice_SetLight                                   = 0x411FB0
+D3DDevice_SetMaterial                                = 0x411470
+D3DDevice_SetPalette                                 = 0
+D3DDevice_SetPixelShader                             = 0x415B00
+D3DDevice_SetPixelShaderConstant                     = 0x415D00
+D3DDevice_SetRenderState_BackFillMode                = 0x4134C0
+D3DDevice_SetRenderState_CullMode                    = 0x413150
+D3DDevice_SetRenderState_DoNotCullUncompressed       = 0x4142C0
+D3DDevice_SetRenderState_Dxt1NoiseEnable             = 0x413310
+D3DDevice_SetRenderState_EdgeAntiAlias               = 0x413080
+D3DDevice_SetRenderState_FillMode                    = 0x413470
+D3DDevice_SetRenderState_FogColor                    = 0x413100
+D3DDevice_SetRenderState_FrontFace                   = 0x4131C0
+D3DDevice_SetRenderState_LineWidth                   = 0x4132A0
+D3DDevice_SetRenderState_LogicOp                     = 0x413410
+D3DDevice_SetRenderState_MultiSampleAntiAlias        = 0x414340
+D3DDevice_SetRenderState_MultiSampleMask             = 0x4143C0
+D3DDevice_SetRenderState_MultiSampleMode             = 0x4142E0
+D3DDevice_SetRenderState_MultiSampleRenderTargetMode = 0x414310
+D3DDevice_SetRenderState_NormalizeNormals            = 0x413200
+D3DDevice_SetRenderState_OcclusionCullEnable         = 0x4141A0
+D3DDevice_SetRenderState_PSTextureModes              = 0x412D50
+D3DDevice_SetRenderState_RopZCmpAlwaysRead           = 0x414280
+D3DDevice_SetRenderState_RopZRead                    = 0x4142A0
+D3DDevice_SetRenderState_SampleAlpha                 = 0x414410
+D3DDevice_SetRenderState_ShadowFunc                  = 0x4130C0
+D3DDevice_SetRenderState_Simple                      = 0x412D80
+D3DDevice_SetRenderState_StencilCullEnable           = 0x414210
+D3DDevice_SetRenderState_StencilEnable               = 0x414060
+D3DDevice_SetRenderState_StencilFail                 = 0x414100
+D3DDevice_SetRenderState_TextureFactor               = 0x413240
+D3DDevice_SetRenderState_TwoSidedLighting            = 0x413520
+D3DDevice_SetRenderState_VertexBlend                 = 0x4135A0
+D3DDevice_SetRenderState_YuvEnable                   = 0x414170
+D3DDevice_SetRenderState_ZEnable                     = 0x413FD0
+D3DDevice_SetRenderStateNotInline                    = 0x412DB0
+D3DDevice_SetRenderTarget                            = 0x411740
+D3DDevice_SetScissors                                = 0x4127B0
+D3DDevice_SetScreenSpaceOffset                       = 0x412AB0
+D3DDevice_SetShaderConstantMode                      = 0x4152C0
+D3DDevice_SetSoftDisplayFilter                       = 0x4115F0
+D3DDevice_SetStreamSource                            = 0x415130
+D3DDevice_SetTexture                                 = 0x4123D0
+D3DDevice_SetTextureStageStateNotInline              = 0x4137F0
+D3DDevice_SetTextureState_BorderColor                = 0x413770
+D3DDevice_SetTextureState_BumpEnv                    = 0x413700
+D3DDevice_SetTextureState_ColorKeyColor              = 0x4137B0
+D3DDevice_SetTextureState_TexCoordIndex              = 0x4135F0
+D3DDevice_SetTile                                    = 0
+D3DDevice_SetTransform                               = 0x411350
+D3DDevice_SetVertexShader                            = 0x415530
+D3DDevice_SetVertexShaderConstant1                   = 0x414EB0
+D3DDevice_SetVertexShaderConstant1Fast               = 0x414F10
+D3DDevice_SetVertexShaderConstant4                   = 0x414F60
+D3DDevice_SetVertexShaderConstantNotInlineFast       = 0x415010
+D3DDevice_SetViewport                                = 0x411D80
+D3DDevice_Swap                                       = 0x4187A0
+D3DDevice_SwitchTexture                              = 0
+D3DResource_BlockUntilNotBusy                        = 0x414720
+D3DResource_IsBusy                                   = 0
+Direct3D_CreateDevice                                = 0x417C10
+DirectSoundCreate                                    = 0x3C38D3
+DirectSoundCreateBuffer                              = 0
+DirectSoundCreateStream                              = 0x3C391A
+DirectSoundDoWork                                    = 0x3C22EC
+DirectSoundUseFullHRTF                               = 0
+DirectSoundUseLightHRTF                              = 0
+getsockname                                          = 0
+getsockopt                                           = 0
+IDirectSound_CommitDeferredSettings                  = 0x3C345D
+IDirectSound_CommitEffectData                        = 0
+IDirectSound_CreateSoundBuffer                       = 0x3C36C5
+IDirectSound_CreateSoundStream                       = 0x3C36E9 # device-method form of DirectSoundCreateStream
+IDirectSound_DownloadEffectsImage                    = 0x3C1FC7
+IDirectSound_EnableHeadphones                        = 0x3C2018
+IDirectSound_GetEffectData                           = 0
+IDirectSound_GetOutputLevels                         = 0x3C2054
+IDirectSound_GetSpeakerConfig                        = 0
+IDirectSound_Release                                 = 0x3C06C1
+IDirectSound_SetDistanceFactor                       = 0
+IDirectSound_SetDopplerFactor                        = 0
+IDirectSound_SetEffectData                           = 0x3C1FEE
+IDirectSound_SetI3DL2Listener                        = 0x3C370D
+IDirectSound_SetMixBinHeadroom                       = 0x3C2034
+IDirectSound_SetOrientation                          = 0
+IDirectSound_SetPosition                             = 0
+IDirectSound_SetRolloffFactor                        = 0
+IDirectSound_SetVelocity                             = 0
+IDirectSound_SynchPlayback                           = 0
+IDirectSoundBuffer_GetCurrentPosition                = 0x3C21D4
+IDirectSoundBuffer_GetStatus                         = 0x3C21B8
+IDirectSoundBuffer_GetVoiceProperties                = 0x3C2240 # 0x5C-byte DSVOICEPROPS query absent from the signature set
+IDirectSoundBuffer_Lock                              = 0x3C2210
+IDirectSoundBuffer_Play                              = 0x3C2138
+IDirectSoundBuffer_Release                           = 0x3C06DC
+IDirectSoundBuffer_SetAllParameters                  = 0
+IDirectSoundBuffer_SetBufferData                     = 0x3C2F78
+IDirectSoundBuffer_SetCurrentPosition                = 0x3C21F4
+IDirectSoundBuffer_SetEG                             = 0x3C20C8 # buffer envelope setter, paired with the stream EG no-op
+IDirectSoundBuffer_SetFilter                         = 0x3C20E4
+IDirectSoundBuffer_SetFormat                         = 0x3C2F5C
+IDirectSoundBuffer_SetFrequency                      = 0x3C28BF
+IDirectSoundBuffer_SetHeadroom                       = 0x3C2100
+IDirectSoundBuffer_SetI3DL2Source                    = 0
+IDirectSoundBuffer_SetLoopRegion                     = 0x3C2198
+IDirectSoundBuffer_SetMaxDistance                    = 0
+IDirectSoundBuffer_SetMinDistance                    = 0
+IDirectSoundBuffer_SetMixBins                        = 0x3C28F7
+IDirectSoundBuffer_SetMixBinVolumes                  = 0x3C211C
+IDirectSoundBuffer_SetOutputBuffer                   = 0x3C28DB
+IDirectSoundBuffer_SetPlayRegion                     = 0x3C2913
+IDirectSoundBuffer_SetPosition                       = 0
+IDirectSoundBuffer_SetRolloffCurve                   = 0
+IDirectSoundBuffer_SetVelocity                       = 0
+IDirectSoundBuffer_SetVolume                         = 0x3C2074
+IDirectSoundBuffer_Stop                              = 0x3C215C
+IDirectSoundBuffer_StopEx                            = 0x3C2174
+IDirectSoundBuffer_Unlock                            = 0x3C06D7
+IDirectSoundStream_SetEG                             = 0x3C22A3
+ioctlsocket                                          = 0x3CC056
+listen                                               = 0
+Lock2DSurface                                        = 0x41AA80
+recv                                                 = 0
+recvfrom                                             = 0x3CC0BE
+select                                               = 0x3CC086
+send                                                 = 0
+sendto                                               = 0x3CC0DC
+setsockopt                                           = 0x3CC061
+shutdown                                             = 0x3CC04B
+socket                                               = 0x3CC035
+WSACancelOverlappedIO                                = 0x3CC0A4
+WSAGetLastError                                      = 0x3CC4E5
+WSAGetOverlappedResult                               = 0x3CC095
+WSARecv                                              = 0x3CC0AF
+WSARecvFrom                                          = 0
+WSASend                                              = 0x3CC0CD
+WSASendTo                                            = 0x3CC0EB
+WSAStartup                                           = 0x3CC367
+XAudioDownloadEffectsImage                           = 0
+XInitDevices                                         = 0x43F0E7
+XInputClose                                          = 0x441DA3
+XInputGetState                                       = 0x441F87
+XInputOpen                                           = 0x441D4D
+XInputSetState                                       = 0x441FFA
+XLaunchNewImageA                                     = 0x013847
+XMountUtilityDrive                                   = 0x01461D
+XNetCreateKey                                        = 0x3CBF9A
+XNetDnsLookup                                        = 0x3CBFD2
+XNetDnsRelease                                       = 0x3CBFE9
+XNetGetEthernetLinkStatus                            = 0x2E9B40
+XNetGetTitleXnAddr                                   = 0x3CC02A
+XNetInAddrToXnAddr                                   = 0
+XNetRandom                                           = 0x3CBF8F
+XNetRegisterKey                                      = 0x3CBFA5
+XNetStartup                                          = 0x3CC350
+XNetUnregisterKey                                    = 0x3CBFB0
+XNetXnAddrToInAddr                                   = 0x3CBFBB
+XOnlineCleanup                                       = 0
+XOnlineStartup                                       = 0x3DF23B
+
+[data]
+D3D_DeferredTextureState    = 0x4228E0
+D3D_Device                  = 0x422D80
+D3D_DirtyFlags              = 0x4228D8
+D3D_FvfShader               = 0x425400 # 0x41A03B writes this object to device+0x794
+D3D_IndexData               = 0x4228D4
+D3D_pDevice                 = 0x422D78
+D3D_RenderState             = 0x422AE0
+D3D_SimpleRenderStateEncode = 0x447A98
+D3D_Streams                 = 0x425228
+D3D_VertexShaderConstants   = 0x421CC0 # 192 x 16 bytes; SetVertexShaderConstant1/4 keep it, state blocks capture from it
+DSound_StreamVtable         = 0x47CD4C
+DSound_StreamVtable2        = 0x47CD3C
+XPP_GamepadType             = 0x43E994
+XPP_MemoryUnitType          = 0x43E918
+
+# argument locations in API order for functions a link time code generated library compiled with another
+# convention: a register (eax ebx ecx edx esi edi ebp) or "stack" for the next stack slot, which the callee pops
+[abi]

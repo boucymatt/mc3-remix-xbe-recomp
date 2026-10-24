@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------------------------------------------
+# Nothing derived from the game may be committed. tools/check_repo_clean.py enforces this on every commit; this
+# file is the first line of defence, not the only one.
+# ---------------------------------------------------------------------------------------------------------------
+
+# the user's own game files (default.xbe, assets_x.dat*, video, audio ...) and what is made from them
+/assets/
+/video/
+/hdd/
+/saves/
+
+# the recompiled game: the game's x86 code translated to C++, so derived from the game. Built locally by build.bat.
+/generated/
+
+# read out of the game's models by tools/generate_headlight_anchors.py during the build
+/src/game/headlight_anchors.h
+
+# build output
+/out/
+/build/
+*.exe
+*.dll
+*.pdb
+*.obj
+*.o
+*.lib
+*.a
+*.zip
+*.7z
+
+# anything a run writes
+settings.toml
+/logs/
+/CrashDumps/
+/captures/
+/gpu_captures/
+*.log
+*.dmp
+mc2_career_progress*
+*.bak
+.pilot_pid
+
+# game files and captures of the game, whatever their folder
+*.xbe
+*.xbck
+*.bik
+*.pss
+*.iso
+*.dat
+*.dat_[0-9]*
+*.bin
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tga
+*.dds
+*.gif
+
+# editors, caches
+.vs/
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.local

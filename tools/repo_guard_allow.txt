@@ -1,0 +1,10 @@
+# Paths that tools/check_repo_clean.py must not flag, one glob per line, each with the reason after a '#'.
+# An entry here is a conscious exception: a reviewer has to agree to it in the pull request that adds it.
+# Never list anything that came out of the game.
+
+sdk/THIRD_PARTY.txt   # upstream licence texts; the toml++ licence names its author by e-mail
+
+# `path :: regex` exempts only the lines of that file the regex matches. D: below is the Xbox's own disc drive, a path
+# inside the emulated console, not a folder of anyone's machine.
+sdk/runtime/kernel/kernel.h :: D:\\{1,2}default\.xbe   # comment: an Xbox image path
+docs/history/traffic-bridge-log.md :: D:\\{1,2}flash   # an Xbox path of the game's asynchronous lookup

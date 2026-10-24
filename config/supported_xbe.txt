@@ -1,0 +1,7 @@
+# The one game build config\game.toml was made for. build.bat refuses any other default.xbe: the hooks in the
+# config and the recompiled code are tied to this build's addresses, and a different dump would compile to a game
+# that crashes. The executable also embeds this hash and checks the game it finds at run time.
+title=Midnight Club 3: DUB Edition
+title_id=54540079
+size=5099520
+sha1=5bca1cf092edaadf876e8f80129900407a4a07b8

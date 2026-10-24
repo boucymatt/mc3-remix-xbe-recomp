@@ -1,0 +1,7 @@
+* text=auto
+*.bat text eol=crlf
+
+# shell scripts must keep LF: a CR in the shebang line makes git hooks fail on Windows
+.githooks/* text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
