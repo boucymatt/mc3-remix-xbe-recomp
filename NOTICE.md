@@ -22,7 +22,8 @@ requires its notice to stay with every copy, so it does.
 
 **This copy is modified.** It is not a clean upstream snapshot and is not the latest upstream. The changes this project
 made include the renderer profiles and features under `sdk/runtime/gpu/`, the optional 128 MB guest memory mode in
-`sdk/runtime/kernel/`, and smaller changes elsewhere in `sdk/runtime/`; this list is not a complete diff. Anything that
+`sdk/runtime/kernel/`, the DirectSound pitch, envelope and 3D voice data in `sdk/runtime/xdk/dsound.cpp` with timer DPCs
+run at `DISPATCH_LEVEL`, and smaller changes elsewhere in `sdk/runtime/`; this list is not a complete diff. Anything that
 is not game specific is a candidate to offer upstream.
 
 `sdk/THIRD_PARTY.txt` carries the notices for software that ends up in the built executable (toml++, Dear ImGui and SDL).
@@ -39,6 +40,8 @@ documents; it does not contain library code.
   follows.
 * [Zydis](https://github.com/zyantific/zydis), [toml++](https://github.com/marzer/tomlplusplus),
   [Dear ImGui](https://github.com/ocornut/imgui) and [SDL](https://github.com/libsdl-org/SDL).
+* **Thiekus**, whose Ghidra project of the Midnight Club 3 XBE, shared with permission, located the DirectSound and
+  XACT functions behind the audio fixes (`docs/AUDIO.md`).
 * [xemu](https://github.com/xemu-project/xemu) and [Cxbx-Reloaded](https://github.com/Cxbx-Reloaded/Cxbx-Reloaded), used by
   the SDK as references for Xbox behaviour. No emulator code is used.
 
