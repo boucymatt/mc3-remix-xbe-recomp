@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "core/log.h"
@@ -33,6 +34,14 @@ uint32_t GuestU32(uint32_t va) {
     return *reinterpret_cast<const uint32_t*>(mem::Base() + va);
 }
 
+// the anchor found for a car, kept while its owner, descriptor and name pointer stay the same: Mc3RenderCar runs on
+// every view the title sets, many times a frame, and reading the name byte by byte each time showed in the profile
+struct KnownAnchor {
+    uint32_t owner = 0, descriptor = 0, name_va = 0;
+    const mc3::headlights::Anchor* anchor = nullptr;
+};
+std::unordered_map<uint32_t, KnownAnchor> g_anchors;  // by Matrix34 address
+
 const mc3::headlights::Anchor* CarHeadlightAnchor(uint32_t matrix) {
     // vehCar+0x40 owns the mcCar. Its +0x50 model descriptor stores a pointer
     // to the vp_* resource name at +0x04. The reverse +0x1C link prevents
@@ -43,6 +52,9 @@ const mc3::headlights::Anchor* CarHeadlightAnchor(uint32_t matrix) {
     const uint32_t descriptor = GuestU32(owner + 0x50);
     const uint32_t name_va = GuestU32(descriptor + 0x04);
     if (!Guest(name_va)) return nullptr;
+    KnownAnchor& known = g_anchors[matrix];
+    if (known.owner == owner && known.descriptor == descriptor && known.name_va == name_va) return known.anchor;
+    known = {owner, descriptor, name_va, nullptr};
     const uint8_t* base = mem::Base();
     size_t size = 0;
     for (; size < 63; ++size) {
@@ -54,7 +66,7 @@ const mc3::headlights::Anchor* CarHeadlightAnchor(uint32_t matrix) {
     }
     if (size < 4 || size == 63 || base[name_va] != 'v' || base[name_va + 1] != 'p' || base[name_va + 2] != '_')
         return nullptr;
-    return mc3::headlights::Find(std::string_view(reinterpret_cast<const char*>(base + name_va), size));
+    return known.anchor = mc3::headlights::Find(std::string_view(reinterpret_cast<const char*>(base + name_va), size));
 }
 
 const float* CarMatrix(uint32_t matrix) {
@@ -79,6 +91,7 @@ void ScanCars() {
     auto t0 = Clock::now();
     uint8_t* base = mem::Base();
     g_cars.clear();
+    g_anchors.clear();
     for (uint32_t matrix = 0x80000010u; matrix < mem::PhysicalEnd() - 48; matrix += 4)
         if (*reinterpret_cast<uint32_t*>(base + matrix - 16) == kCarVtable && CarMatrix(matrix)) g_cars.push_back(matrix);
     LOGR("MC3RENDER contact-shadow: %zu cars found (scan %.1f ms)", g_cars.size(),
@@ -96,10 +109,17 @@ void Mc3RenderCar(uint32_t type, const float* view) {
                                  !gpu::render::On(gpu::render::kLightShadow) &&
                                  !gpu::render::On(gpu::render::kMotionBlur))) return;
     auto& host = d3d::State().host;
-    size_t valid = 0;
-    for (uint32_t c : g_cars) valid += CarMatrix(c) != nullptr;
+    // each car checked once a call: the matrices of the first kHostCars valid ones are kept for the copy below
+    static std::vector<const float*> valid;
+    valid.clear();
+    bool stale = g_cars.empty();
+    for (uint32_t c : g_cars) {
+        const float* m = CarMatrix(c);
+        if (!m) stale = true;
+        else if (valid.size() < gpu::State::kHostCars) valid.push_back(m);
+    }
     auto now = Clock::now();
-    if ((g_cars.empty() || valid < g_cars.size()) && now >= g_next_scan) {
+    if (stale && now >= g_next_scan) {
         g_next_scan = now + std::chrono::seconds(2);
         uint32_t state = GameState();
         static uint32_t last_state = ~0u;
@@ -107,12 +127,15 @@ void Mc3RenderCar(uint32_t type, const float* view) {
         last_state = state;
         if (state != 0 && state != kFrontend && state != kMovie) ScanCars();
         else g_cars.clear();
+        // the list changed: check every car again
+        valid.clear();
+        for (uint32_t c : g_cars)
+            if (const float* m = CarMatrix(c); m && valid.size() < gpu::State::kHostCars) valid.push_back(m);
     }
+    const uint8_t* base = mem::Base();
     size_t n = 0;
-    for (uint32_t c : g_cars) {
-        if (n == gpu::State::kHostCars) break;
-        const float* m = CarMatrix(c);
-        if (!m) continue;
+    for (const float* m : valid) {
+        const uint32_t c = uint32_t(reinterpret_cast<const uint8_t*>(m) - base);
         const size_t at = 4 + n * gpu::State::kHostCarStride;
         for (int i = 0; i < 12; i++) host[at + size_t(i)] = m[i];
         const auto* anchor = CarHeadlightAnchor(c);

@@ -195,6 +195,8 @@ void UpdateViewportConstants() {
     if (!g_own_constants) {
         g_state.vsc[58] = {hw, -hh, (v.max_z - v.min_z) * g_state.zscale, 0};
         g_state.vsc[59] = {v.x + g_state.ss_offset_x + hw, v.y + g_state.ss_offset_y + hh, v.min_z * g_state.zscale, 0};
+        g_state.MarkVsc(58);
+        g_state.MarkVsc(59);
     }
     // the viewport as the library's SetViewport stores it, for inlined readers
     if (XDK_CDevice_Viewport != xdk::kUnknown) {
@@ -596,6 +598,7 @@ HLE_STDCALL(D3DDevice_SetScreenSpaceOffset, 2) {
 HLE_FASTCALL(D3DDevice_SetRenderState_Simple, 0) {
     uint32_t method = a[0] & 0x1FFC, value = a[1];
     g_state.simple[method >> 2] = value;
+    g_state.MarkSimple(method >> 2);
     return 0;
 }
 
@@ -604,6 +607,7 @@ HLE_STDCALL(D3DDevice_SetRenderStateNotInline, 2) {
     if (rs < gpu::kRsDeferredFirst) {
         uint32_t method = R32(kSimpleEncode + rs * 4) & 0x1FFC;
         g_state.simple[method >> 2] = v;
+        g_state.MarkSimple(method >> 2);
         W32(kRenderState + rs * 4, v);  // titles read their states back from the library's table
     } else if (rs < gpu::kRsMax) {
         SetComplex(rs, v);
@@ -846,7 +850,7 @@ HLE_STDCALL(D3DDevice_SetVertexShader, 1) {
             g_state.vs = it->second;
             // constants declared with the shader load when it is selected
             for (auto& [reg, v] : it->second->constants)
-                if (reg < 192) g_state.vsc[reg] = v;
+                if (reg < 192) g_state.vsc[reg] = v, g_state.MarkVsc(reg);
         } else {
             LOG_FIRST(8, "d3d: SetVertexShader with unknown handle %08X", h);
         }
@@ -856,7 +860,7 @@ HLE_STDCALL(D3DDevice_SetVertexShader, 1) {
 
 HLE_FASTCALL(D3DDevice_SetVertexShaderConstant1Fast, 0) {
     uint32_t reg = a[0];
-    if (reg < 192) std::memcpy(g_state.vsc[reg].data(), HostPtr(a[1]), 16);
+    if (reg < 192) std::memcpy(g_state.vsc[reg].data(), HostPtr(a[1]), 16), g_state.MarkVsc(reg);
     return 0;
 }
 
@@ -876,21 +880,23 @@ void ShadowConstants(uint32_t reg, uint32_t src, uint32_t n) {
 
 HLE_FASTCALL(D3DDevice_SetVertexShaderConstant1, 0) {
     uint32_t reg = a[0];
-    if (reg < 192) std::memcpy(g_state.vsc[reg].data(), HostPtr(a[1]), 16);
+    if (reg < 192) std::memcpy(g_state.vsc[reg].data(), HostPtr(a[1]), 16), g_state.MarkVsc(reg);
     ShadowConstants(reg, a[1], 1);
     return 0;
 }
 
 HLE_FASTCALL(D3DDevice_SetVertexShaderConstant4, 0) {
     uint32_t reg = a[0], src = a[1];
-    for (uint32_t i = 0; i < 4 && reg + i < 192; i++) std::memcpy(g_state.vsc[reg + i].data(), HostPtr(src + i * 16), 16);
+    for (uint32_t i = 0; i < 4 && reg + i < 192; i++)
+        std::memcpy(g_state.vsc[reg + i].data(), HostPtr(src + i * 16), 16), g_state.MarkVsc(reg + i);
     ShadowConstants(reg, src, 4);
     return 0;
 }
 
 HLE_FASTCALL(D3DDevice_SetVertexShaderConstantNotInlineFast, 1) {
     uint32_t reg = a[0], src = a[1], dwords = a[2];
-    for (uint32_t i = 0; i < dwords / 4 && reg + i < 192; i++) std::memcpy(g_state.vsc[reg + i].data(), HostPtr(src + i * 16), 16);
+    for (uint32_t i = 0; i < dwords / 4 && reg + i < 192; i++)
+        std::memcpy(g_state.vsc[reg + i].data(), HostPtr(src + i * 16), 16), g_state.MarkVsc(reg + i);
     return 0;
 }
 
@@ -979,7 +985,7 @@ HLE_STDCALL(D3DDevice_SetPixelShader, 1) {
     }
     // the definition loads the combiner state like the XDK pushes it
     const uint32_t* d = g_state.ps->def;
-    auto put = [&](uint32_t method, uint32_t v) { g_state.simple[method >> 2] = v; };
+    auto put = [&](uint32_t method, uint32_t v) { g_state.simple[method >> 2] = v, g_state.MarkSimple(method >> 2); };
     for (int i = 0; i < 8; i++) {
         put(gpu::kMPsAlphaInputs + i * 4, d[0 + i]);
         put(gpu::kMPsConstant0 + i * 4, d[10 + i]);
@@ -1115,7 +1121,7 @@ std::vector<uint32_t> g_im_inline;      // packed vertices submitted with NV097_
 // at a physical address in the first 16 MB
 void ApplyVisibilityMethod(uint32_t m, uint32_t v) {
     constexpr uint32_t kReportAddressMask = 0xFFFFFF;
-    if (m == gpu::kMCountEnable) g_state.simple[gpu::kMCountEnable >> 2] = v;
+    if (m == gpu::kMCountEnable) g_state.simple[gpu::kMCountEnable >> 2] = v, g_state.MarkSimple(gpu::kMCountEnable >> 2);
     if (!g_backend) return;
     if (m == gpu::kMClearReport) g_backend->ClearReport();
     if (m == gpu::kMGetReport) g_backend->GetReport(mem::VirtualFromPhysical(v & kReportAddressMask));
@@ -1242,7 +1248,7 @@ void Walk(uint32_t end) {
                 last = m == 0x1524;
                 a[(m - 0x1518) / 4] = f;
             } else {
-                if (m >> 2 < g_state.simple.size()) g_state.simple[m >> 2] = v;
+                if (m >> 2 < g_state.simple.size()) g_state.simple[m >> 2] = v, g_state.MarkSimple(m >> 2);
                 continue;
             }
             if (!g_im_prim) continue;
@@ -1330,7 +1336,7 @@ HLE_STDCALL(D3DDevice_EndPush, 1) {
             if (m == kInlineArray) {
                 if (prim) vertices.push_back(v);
             } else if (m != kBeginEnd) {
-                if (m >> 2 < g_state.simple.size()) g_state.simple[m >> 2] = v;
+                if (m >> 2 < g_state.simple.size()) g_state.simple[m >> 2] = v, g_state.MarkSimple(m >> 2);
             } else if (v) {
                 prim = v;
                 vertices.clear();
