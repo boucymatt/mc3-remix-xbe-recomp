@@ -333,7 +333,13 @@ void RunDpcs(X86Context& ctx) {
         uint32_t dpc = d[0];
         G<uint8_t>(dpc + 2) = 0;  // Inserted
         uint32_t routine = R32(dpc + 0x0C), context = R32(dpc + 0x10);  // KDPC.DeferredRoutine and DeferredContext
+        // A DPC runs at DISPATCH_LEVEL: no thread that raised to it runs alongside, and the routine knows it. XACT's
+        // sequencer DPC (CEngine::Dispatch, named in Thiekus's Ghidra project of the MC3 XBE) walks the event queue
+        // with no lock of its own, and XACTEnterCriticalSection takes none above PASSIVE_LEVEL. Run at PASSIVE_LEVEL,
+        // the routine raced the title's raised queue updates and broke the queue (MC3-0017).
+        uint8_t irql = RaiseIrqlToDpcLevel();
         if (routine) CallGuest(ctx, routine, {dpc, context, d[1], d[2]});
+        LowerIrql(irql);
     }
 }
 

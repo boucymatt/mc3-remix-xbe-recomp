@@ -93,6 +93,13 @@ uint64_t InterruptTime() {
 
 }  // namespace
 
+uint8_t RaiseIrqlToDpcLevel() {
+    uint8_t old = Irql();
+    SetIrql(2);
+    return old;
+}
+void LowerIrql(uint8_t irql) { SetIrql(irql); }
+
 uint32_t g_tick_count_va = 0;
 uint32_t g_launch_data_page_va = 0;
 
