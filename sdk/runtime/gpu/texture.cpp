@@ -557,6 +557,10 @@ void ApplyPixelConstants(State& s, uint32_t first, uint32_t count) {
     uint32_t f0 = fmap & 0xF, f1 = (fmap >> 4) & 0xF;
     if (mine(f0)) s.simple[kMPsFinalConstant0 >> 2] = PackColor(s.psc[f0]);
     if (mine(f1)) s.simple[kMPsFinalConstant1 >> 2] = PackColor(s.psc[f1]);
+    // a piece marked without a change costs one compare
+    for (uint32_t i = 0; i < 8; i++) s.MarkSimple((kMPsConstant0 >> 2) + i), s.MarkSimple((kMPsConstant1 >> 2) + i);
+    s.MarkSimple(kMPsFinalConstant0 >> 2);
+    s.MarkSimple(kMPsFinalConstant1 >> 2);
 }
 
 }  // namespace gpu

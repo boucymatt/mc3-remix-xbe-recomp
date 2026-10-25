@@ -191,6 +191,15 @@ struct State {
     static constexpr size_t kHostCars = 16;  // a Tokyo race has 9 cars (18/10); more than the list holds is logged
     static constexpr size_t kHostCarStride = 16;
     std::array<float, 4 + kHostCars * kHostCarStride> host{};
+
+    // The 64 byte pieces of simple (8 KB) and vsc (3 KB) written since the threaded backend last sent them: it compares
+    // only those instead of 11 KB on every draw. Every write to simple or vsc marks its piece; a new State has all
+    // marked. Not sent and not compared, so it stays the last member.
+    mutable std::array<uint64_t, 2> dirty_simple{~0ull, ~0ull};  // a bit per 16 simple states
+    mutable uint64_t dirty_vsc = (1ull << 48) - 1;                // a bit per 4 registers
+    void MarkSimple(uint32_t i) { dirty_simple[(i >> 10) & 1] |= 1ull << ((i >> 4) & 63); }
+    void MarkVsc(uint32_t reg) { dirty_vsc |= 1ull << ((reg >> 2) & 63); }
 };
+static_assert(sizeof(State::simple) == 64 * 128 && sizeof(State::vsc) == 64 * 48, "the dirty bits cover simple and vsc");
 
 }  // namespace gpu

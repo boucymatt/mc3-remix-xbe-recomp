@@ -12,6 +12,7 @@
 #include <smmintrin.h>
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -62,7 +63,7 @@ struct Batch {
 };
 
 // the plain data in State, around its shader pointers and the resource headers (sent as copies); of the transforms only
-// view, projection, texture and world are drawn with
+// view, projection, texture and world are drawn with. simple and vsc are not here: they go by their dirty bits.
 struct Range {
     size_t off, len;
 };
@@ -70,14 +71,14 @@ size_t At(const State& s, const void* p) { return size_t(static_cast<const uint8
 std::vector<Range> StateRanges() {
     static const State s;
     return {
-        {At(s, &s.simple), At(s, &s.textures) - At(s, &s.simple)},
+        {At(s, &s.rs), At(s, &s.textures) - At(s, &s.rs)},
         {At(s, &s.index_buffer), At(s, &s.vs) - At(s, &s.index_buffer)},
-        {At(s, &s.vsc), At(s, &s.rt) - At(s, &s.vsc)},
+        {At(s, &s.psc), At(s, &s.rt) - At(s, &s.psc)},
         {At(s, &s.scissor_count), At(s, &s.transforms) - At(s, &s.scissor_count)},
         {At(s, &s.transforms[2]), 2 * sizeof(s.transforms[0])},
         {At(s, &s.transforms[16]), 4 * sizeof(s.transforms[0])},
         {At(s, &s.transforms[256]), sizeof(s.transforms[0])},
-        {At(s, &s.material), sizeof(State) - At(s, &s.material)},
+        {At(s, &s.material), At(s, &s.dirty_simple) - At(s, &s.material)},
     };
 }
 
@@ -340,6 +341,28 @@ private:
         // overhead for stable state (thousands of draws per MC3 frame).
         constexpr size_t kFine = 64, kCoarse = 4 * kFine;
         const uint8_t* sent_bytes = reinterpret_cast<const uint8_t*>(&sent_);
+        // simple and vsc: only the pieces written since the last send, in the same 64 byte pieces as the ranges below
+        auto dirty = [&](size_t base, uint64_t bits, size_t first_piece) {
+            for (; bits; bits &= bits - 1) {
+                const size_t off = base + (first_piece + size_t(std::countr_zero(bits))) * kFine;
+                Delta(sent_bytes + off, now + off, kFine);
+            }
+        };
+        dirty(At(s, &s.simple), s.dirty_simple[0], 0);
+        dirty(At(s, &s.simple), s.dirty_simple[1], 64);
+        dirty(At(s, &s.vsc), s.dirty_vsc, 0);
+        s.dirty_simple = {};
+        s.dirty_vsc = 0;
+        // MC3_STATE_VERIFY=1: a write that forgot to mark its piece would draw with an old state; find it and send it
+        static const bool verify = [] { const char* e = std::getenv("MC3_STATE_VERIFY"); return e && *e == '1'; }();
+        if (verify) {
+            for (auto [field, len] : {std::pair{At(s, &s.simple), sizeof(s.simple)}, std::pair{At(s, &s.vsc), sizeof(s.vsc)}})
+                for (size_t off = field; off < field + len; off += kFine)
+                    if (!Same(sent_bytes + off, now + off, kFine)) {
+                        LOG_FIRST(16, "render thread: state at +%zu changed without its dirty bit", off);
+                        Delta(sent_bytes + off, now + off, kFine);
+                    }
+        }
         for (const Range& r : ranges_) {
             const size_t end = r.off + r.len;
             for (size_t coarse = r.off; coarse < end; coarse += kCoarse) {
