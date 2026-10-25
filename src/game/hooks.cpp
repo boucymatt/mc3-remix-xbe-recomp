@@ -417,16 +417,6 @@ void Mc3MenuVirtualDrawProbe(X86Context& ctx, uint8_t* base) {
          vtable, target);
 }
 
-// MC3 calls this DSOUND-internal flag setter directly at 0x40FBE9. Its
-// original implementation dereferences a console buffer field absent from
-// the host's synthetic audio buffer. The host mixer does not consume that
-// field, so suppress this one setter while retaining its stdcall result.
-X86_FUNC(sub_003C2278) {
-    (void)base;
-    ctx.eax = 0;
-    ctx.esp += 12;  // return address and two arguments
-}
-
 // The game heap (the 0x124 byte object at 0x4C9BE0 on this build) is a fixed number of megabytes: 0x12440 pushes 0x2F
 // (47) as the second argument here, and 0x2698C0 -> 0x367310 rounds MB << 20 to pages and takes it with XPhysicalAlloc
 // (0x18EC6) before handing it to the heap (0x1B3DF0). Nothing asks the kernel how much memory there is, so a 128 MB
