@@ -187,7 +187,8 @@ struct Voice {
     // SetOutputBuffer's destination, and the volume of the voice's DSMIXBIN_SUBMIX send to it
     uint32_t output = 0;
     int32_t sub_mb = 0;
-    double energy = 0;
+    double energy = 0, rate_lo = 1e9, rate_hi = 0;
+    uint32_t rate_calls = 0, rate_from = 0;  // SetFrequency and SetPitch since the last report, the last caller
     // ADPCM block cache
     int64_t block = -1;
     int16_t decoded[65 * 8];
@@ -216,6 +217,8 @@ std::mutex g_trace_lock;
 std::map<std::string_view, uint64_t> g_calls;
 FILE* g_dump = nullptr;
 uint32_t g_dumped = 0;  // frames
+
+thread_local uint32_t t_caller = 0;  // return address of the DirectSound call being handled
 
 void Count(std::string_view name) {
     if (!g_trace) return;
@@ -295,10 +298,18 @@ void Complete(Voice& v, Packet& pk, uint32_t status) {
 // the rate, so the two override each other.
 double RateOf(int32_t pitch) { return 48000.0 * std::exp2(std::clamp(pitch, -32767, 8191) / 4096.0); }
 
-// what the voice plays at: its rate with the 3D doppler shift on top, still within the pitch range
+Voice* Find(uint32_t obj);
+
+// What the voice plays at: its rate with the 3D doppler shift on top, still within the pitch range. A submix's pitch
+// and doppler add to those of every voice feeding it, as the 5849 voice client sums them (0x3C6788, located with
+// Thiekus's Ghidra project): XACT bends the car engine through its submix as the RPM changes.
 double Rate(const Voice& v) {
     double hz = v.hz ? v.hz : v.rate;
     if (v.use_d3) hz *= std::exp2(v.d3[9] / 4096.0);
+    if (const Voice* s = Find(v.output); s && s != &v && s->flags & 0x82000) {
+        hz *= (s->hz ? s->hz : s->rate) / 48000.0;
+        if (s->use_d3) hz *= std::exp2(s->d3[9] / 4096.0);
+    }
     return std::clamp(hz, RateOf(-32767), RateOf(8191));
 }
 
@@ -333,8 +344,6 @@ float Envelope(const Voice& v) {
     if (v.eg_out >= 0) level = v.eg_from * std::max(0.0f, 1 - float(v.eg_out) / float(v.eg[4] * 512ull));
     return level;
 }
-
-Voice* Find(uint32_t obj);
 
 // gain of voice channel c on host left and right. A hardware voice holds two channels and owns a run of slots,
 // which alternate left and right.
@@ -409,6 +418,10 @@ void Render(float* out, uint32_t frames) {
         Levels(v, g);
         uint32_t base = v.data + v.play_start;
         double step = Rate(v) / audio::kRate;
+        if (g_trace) {
+            v.rate_lo = std::min(v.rate_lo, Rate(v));
+            v.rate_hi = std::max(v.rate_hi, Rate(v));
+        }
         for (uint32_t i = 0; i < frames; i++) {
             uint32_t f = uint32_t(v.pos);
             float a, b, a1, b1;  // this frame and the next, interpolated between
@@ -549,10 +562,10 @@ void LogTrace() {
         for (uint32_t s = 0; s < v.nbins; s++)
             bins += " " + std::to_string(v.bin[s]) + ":" + std::to_string(v.bin_mb[v.bin[s]]);
         LOGR("dsound: loud %08X %s rms %.1f dB, from %08X flags %X, %u ch %u Hz at %.0f Hz, volume %d mB headroom %d mB, "
-             "out %08X, 3D %d, eg %u/%u, bins%s",
+             "out %08X, 3D %d, eg %u/%u, rate %.0f..%.0f Hz from %u calls by %08X, bins%s",
              v.obj, v.stream ? "stream" : "buffer", 10 * std::log10(v.energy / (kTraceMs / 1000.0 * audio::kRate) + 1e-12),
              v.creator, v.flags, v.channels, v.rate, Rate(v), v.vol_mb, v.head_mb, v.output, v.use_d3, v.eg_mode, v.eg[4],
-             bins.c_str());
+             v.rate_lo, v.rate_hi, v.rate_calls, v.rate_from, bins.c_str());
         if (Voice* o = Find(v.output)) {
             std::string obins;
             for (uint32_t s = 0; s < o->nbins; s++)
@@ -561,7 +574,23 @@ void LogTrace() {
                  o->channels, o->vol_mb, o->head_mb, o->output, o->playing ? "playing" : "stopped", obins.c_str());
         }
     }
-    for (auto& [obj, v] : g_voices) v.energy = 0;
+    std::vector<Voice*> bent;
+    for (auto& [obj, v] : g_voices)
+        if (v.rate_calls > 3) bent.push_back(&v);
+    std::sort(bent.begin(), bent.end(), [](Voice* x, Voice* y) { return x->rate_calls > y->rate_calls; });
+    for (size_t i = 0; i < bent.size() && i < 6; i++) {
+        Voice& v = *bent[i];
+        LOGR("dsound: bent %08X %s rms %.1f dB, %s, from %08X, %u ch %u Hz, now %.0f Hz from %u calls by %08X, "
+             "volume %d mB, out %08X, %u bins",
+             v.obj, v.stream ? "stream" : "buffer", 10 * std::log10(v.energy / (kTraceMs / 1000.0 * audio::kRate) + 1e-12),
+             v.stream ? (v.packets.empty() ? "starved" : "fed") : (v.playing ? "playing" : "stopped"), v.creator,
+             v.channels, v.rate, Rate(v), v.rate_calls, v.rate_from, v.vol_mb, v.output, v.nbins);
+    }
+    for (auto& [obj, v] : g_voices) {
+        v.energy = v.rate_hi = 0;
+        v.rate_lo = 1e9;
+        v.rate_calls = 0;
+    }
 }
 
 int64_t NowMs() {
@@ -890,6 +919,7 @@ HLE_STDCALL(IDirectSound_CreateSoundBuffer, 4) { return NewBuffer(a[1], a[2], R3
     static uint32_t buf_##name(Voice& v, const Args& a);    \
     HLE_STDCALL(IDirectSoundBuffer_##name, nargs) {         \
         Count("Buffer_" #name);                             \
+        t_caller = R32(ctx.esp);                            \
         std::lock_guard<std::recursive_mutex> lock(g_lock); \
         Voice* v = Find(a[0]);                              \
         return v ? buf_##name(*v, a) : 0x80004005u;         \
@@ -1013,11 +1043,15 @@ BUFFER(SetVolume, 2) {
     return 0;
 }
 BUFFER(SetFrequency, 2) {
+    v.rate_calls++;
+    v.rate_from = t_caller;
     v.hz = a[1];  // DSBFREQUENCY_ORIGINAL, 0, goes back to the format's
     return 0;
 }
 // pitch bend from 48 kHz in 1/4096 octave. XACT sets it on every buffer it plays.
 BUFFER(SetPitch, 2) {
+    v.rate_calls++;
+    v.rate_from = t_caller;
     v.hz = RateOf(int32_t(a[1]));
     return 0;
 }
@@ -1128,6 +1162,7 @@ HLE_STDCALL(IDirectSound_CreateSoundStream, 4) { return NewStream(a[1], a[2], R3
     static uint32_t str_##name(Voice& v, const Args& a);        \
     HLE_STDCALL(CDirectSoundStream_##name, nargs) {             \
         Count("Stream_" #name);                                 \
+        t_caller = R32(ctx.esp);                                \
         uint32_t r;                                             \
         std::vector<Done> flushed;                              \
         {                                                       \
@@ -1232,10 +1267,14 @@ STREAM(SetVolume, 2) {
     return 0;
 }
 STREAM(SetFrequency, 2) {
+    v.rate_calls++;
+    v.rate_from = t_caller;
     v.hz = a[1];
     return 0;
 }
 STREAM(SetPitch, 2) {
+    v.rate_calls++;
+    v.rate_from = t_caller;
     v.hz = RateOf(int32_t(a[1]));
     return 0;
 }

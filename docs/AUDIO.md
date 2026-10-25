@@ -31,7 +31,9 @@ to use it. The XDK 5849.17 documentation and headers are the reference for what 
 * **Submixes.** XACT sends each of its 3D sounds through a mono submix buffer of its
   own (`DSBCAPS_MIXIN`), and the distance and pan live in that buffer's mix bin volumes. `SetOutputBuffer` to a submix
   empties the voice's bin list and feeds the submix at 1/channels amplitude, as the library does; `DSMIXBIN_SUBMIX`
-  (31) in `SetMixBins` sets that send. The submix plays it through its own bins, volume, headroom and 3D. A voice given
+  (31) in `SetMixBins` sets that send. The submix plays it through its own bins, volume, headroom and 3D, and its pitch and doppler add to
+  the voice's: XACT bends the car engine through the submix as the RPM changes, over a hundred `SetPitch` calls a
+  second on one submix while driving, and before this the engine kept the rate of its file. A voice given
   no mix bins gets the library's defaults (`DirectSoundDefaultMixBins`: the crosstalk pairs and I3DL2 for 3D, nothing
   when it has a submix, else the speakers its channels fill). Before, a routed voice played straight to the front
   speakers at full level, 20 to 40 dB above its place in the mix, and a race mix clipped.
@@ -57,5 +59,5 @@ Both are off by default.
 
 | Variable | Effect |
 | --- | --- |
-| `XBE_AUDIO_TRACE=1` | Every 10 s, `logs\mc3_xbe.log` gets how many buffers and streams exist and play, their rate range, how often each DirectSound function ran, and the eight loudest voices with who made them, their volumes, bins and submix. |
+| `XBE_AUDIO_TRACE=1` | Every 10 s, `logs\mc3_xbe.log` gets how many buffers and streams exist and play, their rate range, how often each DirectSound function ran, the eight loudest voices with who made them, their volumes, bins, submix and the range of rates they played, and the voices that took the most pitch changes. |
 | `XBE_AUDIO_DUMP=<file>` | Writes the mix, as sent to the PC, to a 16-bit 48 kHz stereo WAV file. It is a recording of the game: keep it out of the repository. |
