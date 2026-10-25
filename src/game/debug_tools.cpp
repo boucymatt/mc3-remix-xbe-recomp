@@ -63,7 +63,20 @@ size_t g_follow_index = 0;
 uint32_t g_reported_car = 0;
 uint32_t g_player_car = 0;
 
-bool Down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
+// Mc3DebugTransform runs on every view transform the title sets, many times a frame, and GetAsyncKeyState crosses into
+// win32u on each call: with dense traffic that was a fifth of the title thread. A key is read at most every 8 ms, still
+// several times a frame and far shorter than a key press.
+bool Down(int key) {
+    static std::array<Clock::time_point, 256> read_at{};
+    static std::array<bool, 256> down{};
+    const size_t k = size_t(key) & 255;
+    const auto now = Clock::now();
+    if (now - read_at[k] >= std::chrono::milliseconds(8)) {
+        read_at[k] = now;
+        down[k] = (GetAsyncKeyState(key) & 0x8000) != 0;
+    }
+    return down[k];
+}
 bool Pressed(int key) {
     static std::array<bool, 256> was{};
     bool now = Down(key);
