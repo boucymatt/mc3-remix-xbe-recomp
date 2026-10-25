@@ -75,6 +75,7 @@ Where things live:
 | Midnight Club 2 city and career bridge | `src/game/mc2_*.cpp` |
 | Debug tools | `src/game/debug_tools.cpp`, `src/game/write_watch.cpp` |
 | Kernel, memory, files, input | `sdk/runtime/` |
+| Host performance | `sdk/runtime/gpu/render_thread.cpp`, `sdk/runtime/gpu/d3d12.cpp`, `docs/PERFORMANCE.md` |
 | Build and tools | `build.bat`, `CMakeLists.txt`, `tools/` |
 
 How the game is changed:
@@ -88,6 +89,10 @@ How the game is changed:
   taken, hook what it jumps to, or call into your code from the existing hook.
 * `sdk/` is a vendored, modified copy of the Xbox XBE Recomp SDK. Change it only when the game cannot be changed from
   `src/`, keep the edit small, and say so in the commit message so it can be offered upstream.
+* **Render state has two rules** (`docs/PERFORMANCE.md`): every write to `State::simple` or `State::vsc` calls
+  `MarkSimple`/`MarkVsc`, and the backend sets viewport, scissor, blend factor, stencil reference, topology and pipeline
+  only through its cached setters (`SetViewport` and the others), never with `cl_->...` directly. Breaking either draws
+  with stale state. After touching either, run once with `MC3_STATE_VERIFY=1`.
 * Match the code around yours: naming, comment density, idiom. Comments say why, not what.
 * No absolute paths, machine names, user names or e-mail addresses in anything you commit.
 

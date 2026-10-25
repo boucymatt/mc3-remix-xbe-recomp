@@ -21,6 +21,8 @@ below are opt-in and described in their own pages. Expect rough edges.
   reference. See [docs/RENDER_PROFILES.md](docs/RENDER_PROFILES.md).
 * **Cruise traffic pool** (opt-in): San Diego's Cruise driven by complete `vp_*` vehicles, up to 100 cars from 30 models,
   each with a random `.carcfg`. See [docs/TRAFFIC_POOL.md](docs/TRAFFIC_POOL.md).
+* **Host performance work**: the title and render threads trimmed so that the 100-car scene runs at about twice
+  the frame rate it did. The rules that keep it so are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 * **Optional 128 MB memory mode** (`--mc3-guest-memory=128`), the memory of a development kit.
 * **Debug tools**: a free camera, an AI spectator, a camera that follows each traffic car, a write watchpoint and a
   resource trace.
