@@ -21,6 +21,12 @@ struct Settings {
     uint32_t render_percent = 100;   // of the output height
     uint32_t fps_cap = 30;           // 0 unlimited; MC3's original presentation cadence is 30 FPS
     bool vsync = true;
+    bool motion_blur = true;
+    bool light_streaks = true;
+    bool road_shine = true;
+    bool camera_orbit = false;
+    std::string linux_renderer = "opengl";  // opengl or native vulkan
+    uint32_t render_height = 480;  // Linux internal target height, independent of the window
     uint32_t aniso = 0;              // 0 as the game asks
     std::string join_ip;                   // co-op: a host past the LAN the system link search also asks
     // the renderer's profile (gpu/render_profile.h); --mc3-render-* on the command line wins over these

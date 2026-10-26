@@ -1,6 +1,18 @@
 # Original Xbox static recompilation: xbe_recomp, the host runtime and add_xbe_image()
 include_guard(GLOBAL)
 
+option(XBE_HEADLESS "Build the Linux harness without a window or audio output" OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR XBE_HEADLESS)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+        message(FATAL_ERROR "The headless harness requires x86-64 Linux")
+    endif()
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "The recompiled game requires Clang; use the linux-release preset")
+    endif()
+elseif(NOT WIN32)
+    message(FATAL_ERROR "Supported hosts are Windows and x86-64 Linux")
+endif()
+
 get_filename_component(XBE_SDK_DIR ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 # build scripts find the SDK's xdk folder and THIRD_PARTY.txt through this
 file(TO_NATIVE_PATH "${XBE_SDK_DIR}" XBE_SDK_DIR_NATIVE)
@@ -12,16 +24,36 @@ set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_DOXYGEN OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(zydis GIT_REPOSITORY https://github.com/zyantific/zydis.git GIT_TAG v4.1.1 GIT_SHALLOW TRUE)
 FetchContent_Declare(tomlplusplus GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git GIT_TAG v3.4.0 GIT_SHALLOW TRUE)
-FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.0 GIT_SHALLOW TRUE)
-# SDL3 for controllers, static so it links into the exe
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-set(SDL_RENDER OFF CACHE BOOL "" FORCE)
-set(SDL_GPU OFF CACHE BOOL "" FORCE)
-set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(SDL3 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.4.16 GIT_SHALLOW TRUE)
-FetchContent_MakeAvailable(zydis tomlplusplus imgui SDL3)
+FetchContent_MakeAvailable(zydis tomlplusplus)
+if(WIN32)
+    FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.0 GIT_SHALLOW TRUE)
+    # SDL3 for controllers, static so it links into the exe
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+    set(SDL_GPU OFF CACHE BOOL "" FORCE)
+    set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL3 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.4.16 GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(imgui SDL3)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT XBE_HEADLESS)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LINUX_SDL REQUIRED IMPORTED_TARGET sdl3>=3.2)
+    find_package(Vulkan 1.3 REQUIRED)
+    pkg_check_modules(LINUX_GL REQUIRED IMPORTED_TARGET epoxy)
+    pkg_check_modules(LINUX_SHADERC REQUIRED IMPORTED_TARGET shaderc)
+    set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_MSL OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_C_API OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(spirv_cross GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Cross.git
+        GIT_TAG 5d127b917f080c6f052553c47170ec0ba702e54f)
+    FetchContent_MakeAvailable(spirv_cross)
+endif()
 
 # x86 to C++ recompiler
 file(GLOB XBE_RECOMP_SOURCES CONFIGURE_DEPENDS ${XBE_SDK_DIR}/tools/recomp/*.cpp)
@@ -36,17 +68,32 @@ target_include_directories(xbe_symbols PRIVATE ${XBE_SDK_DIR}/runtime)
 target_compile_definitions(xbe_symbols PRIVATE _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(xbe_symbols PRIVATE Zydis tomlplusplus::tomlplusplus)
 
-set(XBE_IMGUI_SOURCES
-    ${imgui_SOURCE_DIR}/imgui.cpp
-    ${imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+if(WIN32)
+    set(XBE_IMGUI_SOURCES
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+endif()
 
 file(GLOB XBE_RUNTIME_SOURCES CONFIGURE_DEPENDS ${XBE_SDK_DIR}/runtime/*/*.cpp)
-# SDL's headers go to the input code alone (it is linked LINK_ONLY), so the generated sources' compile line stays the same
-set_source_files_properties(${XBE_SDK_DIR}/runtime/core/input.cpp PROPERTIES INCLUDE_DIRECTORIES "${sdl3_SOURCE_DIR}/include")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/runtime/app/|/core/input\\.cpp$|/gpu/d3d12\\.cpp$|/audio/xaudio2\\.cpp$")
+    if(XBE_HEADLESS)
+        file(GLOB XBE_HARNESS_SOURCES CONFIGURE_DEPENDS ${XBE_SDK_DIR}/harness/*.cpp)
+    else()
+        file(GLOB XBE_HARNESS_SOURCES CONFIGURE_DEPENDS ${XBE_SDK_DIR}/linux/*.cpp)
+        list(APPEND XBE_HARNESS_SOURCES ${XBE_SDK_DIR}/harness/main_test.cpp
+            ${XBE_SDK_DIR}/runtime/core/input.cpp ${XBE_SDK_DIR}/runtime/app/settings.cpp)
+    endif()
+    list(APPEND XBE_RUNTIME_SOURCES ${XBE_HARNESS_SOURCES})
+    find_package(Threads REQUIRED)
+else()
+    # SDL's headers go to the input code alone (it is linked LINK_ONLY), so the generated sources' compile line stays the same
+    set_source_files_properties(${XBE_SDK_DIR}/runtime/core/input.cpp PROPERTIES INCLUDE_DIRECTORIES "${sdl3_SOURCE_DIR}/include")
+endif()
 
 # One executable per recompiled image: its code from config/<config> (partitions as that config sets them),
 # the SDK runtime, XBE_HOST_SOURCES shared by every image of the game, and src/<game_dir> hooks only this image has.
@@ -81,10 +128,20 @@ function(add_xbe_image target xbe config partitions game_dir)
     add_executable(${target} WIN32 ${XBE_RUNTIME_SOURCES} ${XBE_HOST_SOURCES} ${GAME_SOURCES} ${GEN_SOURCES} ${XBE_IMGUI_SOURCES} ${XBE_HASH})
     add_dependencies(${target} recompile_${target})
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${XBE_SDK_DIR}/runtime ${GEN})
-    target_include_directories(${target} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
     target_compile_options(${target} PRIVATE -fno-strict-aliasing)
-    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
-    target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus $<LINK_ONLY:SDL3::SDL3-static> d3d12 dxgi dxguid d3dcompiler xaudio2 ole32 windowscodecs dbghelp winmm dwmapi ws2_32)
-    # lld keeps the recompiled weak functions overridable by the host ones
-    target_link_options(${target} PRIVATE -fuse-ld=lld -g)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_include_directories(${target} PRIVATE ${XBE_SDK_DIR}/harness ${XBE_SDK_DIR}/harness/compat ${XBE_SDK_DIR}/linux)
+        target_compile_definitions(${target} PRIVATE XBE_HEADLESS=$<BOOL:${XBE_HEADLESS}> XBE_RAW_VERTICES=0 XBE_RENDER_THREAD=$<NOT:$<BOOL:${XBE_HEADLESS}>>)
+        target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus Threads::Threads)
+        if(NOT XBE_HEADLESS)
+            target_compile_definitions(${target} PRIVATE XBE_LINUX_WINDOW=1)
+            target_link_libraries(${target} PRIVATE PkgConfig::LINUX_SDL PkgConfig::LINUX_GL PkgConfig::LINUX_SHADERC spirv-cross-glsl Vulkan::Vulkan)
+        endif()
+    else()
+        target_include_directories(${target} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        target_compile_definitions(${target} PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
+        target_link_libraries(${target} PRIVATE tomlplusplus::tomlplusplus $<LINK_ONLY:SDL3::SDL3-static> d3d12 dxgi dxguid d3dcompiler xaudio2 ole32 windowscodecs dbghelp winmm dwmapi ws2_32)
+        # lld keeps the recompiled weak functions overridable by the host ones
+        target_link_options(${target} PRIVATE -fuse-ld=lld -g)
+    endif()
 endfunction()

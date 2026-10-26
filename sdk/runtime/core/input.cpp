@@ -3,10 +3,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <iterator>
 #include <mutex>
 
 #include <SDL3/SDL.h>
+#if XBE_LINUX_WINDOW
+#include <windows.h>
+#endif
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -17,6 +21,10 @@
 #include "core/log.h"
 
 namespace input {
+
+#if XBE_LINUX_WINDOW
+void MergeScript(Pad&);
+#endif
 
 namespace {
 
@@ -46,6 +54,7 @@ void RemovePad(SDL_JoystickID id) {
 
 // once a millisecond at most, however many ports and threads read
 void UpdatePads() {
+#if !XBE_LINUX_WINDOW
     static uint64_t last = 0;
     uint64_t now = SDL_GetTicks();
     if (!g_sdl || now == last) return;
@@ -56,6 +65,7 @@ void UpdatePads() {
         if (e.type == SDL_EVENT_GAMEPAD_ADDED) AddPad(e.gdevice.which);
         else if (e.type == SDL_EVENT_GAMEPAD_REMOVED) RemovePad(e.gdevice.which);
     }
+#endif
 }
 
 }  // namespace
@@ -84,7 +94,7 @@ void Init() {
     }
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || XBE_LINUX_WINDOW
 static std::atomic<bool> g_key_state[256] = {};
 
 void OnKey(uint32_t vk, bool down) {
@@ -98,6 +108,7 @@ void OnKey(uint32_t vk, bool down) {
 // subsystem), but take each key at most once per millisecond. Poll is already
 // serialized by g_lock.
 bool KeyDown(int vk) {
+#ifdef _WIN32
     static uint64_t sampled_at = ~0ull;
     static bool known[256] = {};
     static bool direct[256] = {};
@@ -113,6 +124,9 @@ bool KeyDown(int vk) {
     }
     return (valid && direct[vk]) ||
            (valid && g_key_state[vk].load(std::memory_order_relaxed));
+#else
+    return vk >= 0 && vk < 256 && g_key_state[vk].load(std::memory_order_relaxed);
+#endif
 }
 
 void MergeKeyboard(Pad& p) {
@@ -139,7 +153,13 @@ void MergeKeyboard(Pad& p) {
 }
 #else
 void OnKey(uint32_t, bool) {}
+bool KeyDown(int) { return false; }
 #endif
+
+void OnDevice(uint32_t id, bool added) {
+    std::lock_guard lock(g_lock);
+    if (added) AddPad(id); else RemovePad(id);
+}
 
 Pad Poll(int port) {
     Pad p;
@@ -170,7 +190,7 @@ Pad Poll(int port) {
             p.ry = int16_t(-1 - axis(SDL_GAMEPAD_AXIS_RIGHTY));
         } else if (port == 0) {
             // Keyboard fallback for development systems without a controller.
-#ifdef _WIN32
+#if defined(_WIN32) || XBE_LINUX_WINDOW
             // Applied once below so a physical pad and the host keyboard use
             // the same merge path and a keyboard-only report is not read twice.
             p.connected = true;
@@ -196,7 +216,7 @@ Pad Poll(int port) {
             p.ly = key[SDL_SCANCODE_W] ? 32767 : key[SDL_SCANCODE_S] ? -32768 : 0;
 #endif
         }
-#ifdef _WIN32
+#if defined(_WIN32) || XBE_LINUX_WINDOW
         // Keep the host keyboard usable when SDL has claimed port 0 for a physical or virtual pad.
         // MC3's title screen consumes events produced from XInputGetState, so writing its translated
         // button words later in the frame is insufficient for Start.
@@ -212,6 +232,13 @@ Pad Poll(int port) {
         }
 #endif
     }
+#if XBE_LINUX_WINDOW
+    if (port == 0) {
+        // Replays must not depend on a connected wheel/pad or desktop typing.
+        if (std::getenv("MC3_INPUT_SCRIPT")) { p = {}; p.connected = true; }
+        MergeScript(p);
+    }
+#endif
     if (app::kGame.pad) app::kGame.pad(port, p);
     return p;
 }

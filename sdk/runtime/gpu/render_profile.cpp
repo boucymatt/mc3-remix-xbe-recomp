@@ -1,4 +1,5 @@
 // The renderer's profile: command line over the settings file over legacy, read once
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,14 +9,18 @@
 #include <windows.h>
 #include <bcrypt.h>
 #include <shellapi.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <mutex>
+#include <sstream>
 #include <vector>
 
 #include "app/app.h"
@@ -23,8 +28,10 @@
 #include "gpu/render_profile.h"
 #include "gpu/shaders.h"
 
+#ifdef _WIN32
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "shell32.lib")
+#endif
 
 namespace gpu::render {
 
@@ -53,12 +60,21 @@ const Name kNames[] = {
     {kMotionBlur, "motion-blur", "motion_blur"},
 };
 
+#ifdef _WIN32
 std::string Utf8(const wchar_t* w) {
     int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
     std::string s(n > 0 ? size_t(n - 1) : 0, '\0');
     if (n > 1) WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), n, nullptr, nullptr);
     return s;
 }
+#else
+std::vector<std::string> LinuxArgs() {
+    std::ifstream f("/proc/self/cmdline", std::ios::binary);
+    std::vector<std::string> out;
+    for (std::string arg; std::getline(f, arg, '\0');) out.push_back(std::move(arg));
+    return out;
+}
+#endif
 
 std::string Lower(std::string s) {
     for (char& c : s) c = char(tolower(uint8_t(c)));
@@ -103,12 +119,17 @@ uint32_t ParseFeatures(const std::string& list, std::string& errors) {
 
 // --name=value from the command line, the last one winning; every one for lists
 std::vector<std::string> Args() {
+#ifdef _WIN32
     std::vector<std::string> out;
     int n = 0;
     wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &n);
     if (!argv) return out;
     for (int i = 1; i < n; i++) out.push_back(Utf8(argv[i]));
     LocalFree(argv);
+#else
+    auto out = LinuxArgs();
+    if (!out.empty()) out.erase(out.begin());
+#endif
     return out;
 }
 
@@ -478,6 +499,7 @@ std::string Hex(uint64_t v, int digits) {
 
 // the running executable's SHA-256, for the evidence a gate asks for
 std::string ExeSha256() {
+#ifdef _WIN32
     wchar_t path[MAX_PATH];
     GetModuleFileNameW(nullptr, path, MAX_PATH);
     std::ifstream f(path, std::ios::binary);
@@ -501,6 +523,10 @@ std::string ExeSha256() {
     }
     BCryptCloseAlgorithmProvider(alg, 0);
     return out;
+#else
+    // The headless harness has no D3D12 evidence gate or BCrypt dependency.
+    return "unavailable (headless)";
+#endif
 }
 
 }  // namespace
@@ -663,6 +689,7 @@ void WriteEffectiveConfig() {
         LOGE("MC3RENDER could not write %s", p.string().c_str());
         return;
     }
+#ifdef _WIN32
     wchar_t exe[MAX_PATH];
     GetModuleFileNameW(nullptr, exe, MAX_PATH);
     SYSTEMTIME t;
@@ -670,11 +697,28 @@ void WriteEffectiveConfig() {
     char when[32];
     snprintf(when, sizeof(when), "%04u-%02u-%02u %02u:%02u:%02u", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute,
              t.wSecond);
+    std::string executable = Utf8(exe);
+    std::string command_line = Utf8(GetCommandLineW());
+#else
+    std::error_code ec;
+    auto exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    std::string executable = ec ? "?" : exe.string();
+    const std::time_t now = std::time(nullptr);
+    std::tm t{};
+    char when[32] = "?";
+    if (localtime_r(&now, &t)) std::strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", &t);
+    std::ostringstream line;
+    for (const auto& arg : LinuxArgs()) {
+        if (line.tellp() > 0) line << ' ';
+        line << std::quoted(arg);
+    }
+    std::string command_line = line.str();
+#endif
     f << "# what took effect this launch; command line over settings.toml over legacy\n";
     f << "written=" << when << "\n";
-    f << "exe=" << Utf8(exe) << "\n";
+    f << "exe=" << executable << "\n";
     f << "exe_sha256=" << ExeSha256() << "\n";
-    f << "command_line=" << Utf8(GetCommandLineW()) << "\n";
+    f << "command_line=" << command_line << "\n";
     f << "profile=" << ProfileName(c.profile) << "\n";
     f << "profile_from=" << c.profile_from << "\n";
     f << "features_effective=" << FeatureNames(c.effective) << "\n";

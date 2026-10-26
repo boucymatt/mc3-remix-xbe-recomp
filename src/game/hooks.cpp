@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <unordered_map>
@@ -16,6 +17,7 @@
 
 #include "core/input.h"
 #include "debug_tools.h"
+#include "camera_orbit.h"
 #include "mc2_career_test.h"
 #include "mc2_career_bridge.h"
 
@@ -42,7 +44,11 @@ void InitLiveUiState();
 void Mc3Init() {
     // Keep F3 diagnostics reproducible when the executable is launched directly.
     // It only chooses the destination; no capture work occurs until F3 is pressed.
+#ifdef _WIN32
     _wputenv_s(L"XBE_CAPTURE_DIR", L"gpu_captures");
+#else
+    setenv("XBE_CAPTURE_DIR", "gpu_captures", 1);
+#endif
     Mc3DebugInit();
     if (Mc3DebugHasArg(L"--mc2-test-state")) {
         int rc = mc2::RunCareerStateMachineTests();
@@ -106,6 +112,7 @@ static Mc3LiveUiState* g_live_ui_state = nullptr;
 
 void InitLiveUiState() {
     if (g_live_ui_state) return;
+#ifdef _WIN32
     HANDLE hMap = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(Mc3LiveUiState), "Local\\MC3_GAME_STATE");
     if (!hMap) {
         LOGE("MC3: CreateFileMappingA Local\\MC3_GAME_STATE failed err=%lu", GetLastError());
@@ -116,10 +123,19 @@ void InitLiveUiState() {
         LOGE("MC3: MapViewOfFile failed err=%lu", GetLastError());
         return;
     }
+#else
+    // Keep in-process state tracking and frame counts in the Linux harness.
+    // The external automation interface uses a Windows named file mapping.
+    static Mc3LiveUiState state{};
+    g_live_ui_state = &state;
+    LOGI("MC3: live UI state is process-local; Windows shared-memory automation is unavailable");
+#endif
     std::memset(g_live_ui_state, 0, sizeof(Mc3LiveUiState));
     g_live_ui_state->magic = 0x4D433353;
     g_live_ui_state->version = 2;
+#ifdef _WIN32
     LOGE("MC3: Initialized live UI state shared memory Local\\MC3_GAME_STATE at %p", g_live_ui_state);
+#endif
 }
 
 static void UpdateLiveUiState(uint32_t state, uint8_t* base, uint32_t current_pad) {
@@ -133,14 +149,33 @@ static void UpdateLiveUiState(uint32_t state, uint8_t* base, uint32_t current_pa
         return;
     }
 
-    __try {
+    auto readable = [](uint32_t address, uint32_t bytes) {
+#ifdef _WIN32
+        // Windows retains its existing SEH guard without per-frame page checks.
+        (void)address;
+        (void)bytes;
+        return true;
+#else
+        const uint64_t end = uint64_t(address) + bytes;
+        if (!bytes || end > (uint64_t{1} << 32)) return false;
+        for (uint64_t page = address & ~(uint64_t(mem::kPage) - 1); page < end; page += mem::kPage)
+            if (!mem::IsCommitted(uint32_t(page))) return false;
+        return true;
+#endif
+    };
+
+#ifdef _WIN32
+    __try
+#endif
+    {
         if (state == ~0u) {
             const uint32_t state_obj = X86_MEM32(0x557ED0);
-            state = (state_obj >= 0x80000000u && state_obj < mem::PhysicalEnd()) ? X86_MEM32(state_obj + 4) : 0;
+            state = (state_obj >= 0x80000000u && state_obj < mem::PhysicalEnd() && readable(state_obj, 8))
+                ? X86_MEM32(state_obj + 4) : 0;
         }
 
         uint32_t movie = X86_MEM32(0x50F19C);
-        uint16_t movie_flags = movie
+        uint16_t movie_flags = movie && readable(movie, 0x22)
             ? uint16_t(X86_MEM8(movie + 0x20)) | (uint16_t(X86_MEM8(movie + 0x21)) << 8)
             : 0;
         bool is_fmv = (state == 4) || (movie != 0 && (movie_flags & 1u) != 0);
@@ -161,11 +196,11 @@ static void UpdateLiveUiState(uint32_t state, uint8_t* base, uint32_t current_pa
 
         uint32_t manager = X86_MEM32(0x50F148);
 
-        if (manager >= 0x80000000u && manager < mem::PhysicalEnd()) {
+        if (manager >= 0x80000000u && manager < mem::PhysicalEnd() && readable(manager, 16)) {
             uint32_t holder = X86_MEM32(manager + 12);
-            if (holder >= 0x80000000u && holder < mem::PhysicalEnd()) {
+            if (holder >= 0x80000000u && holder < mem::PhysicalEnd() && readable(holder, 0x100)) {
                 uint32_t active_menu = X86_MEM32(holder + 12);
-                if (active_menu >= 0x80000000u && active_menu < mem::PhysicalEnd()) {
+                if (active_menu >= 0x80000000u && active_menu < mem::PhysicalEnd() && readable(active_menu, 4)) {
                     active_menu_vt = X86_MEM32(active_menu);
                 }
 
@@ -177,7 +212,7 @@ static void UpdateLiveUiState(uint32_t state, uint8_t* base, uint32_t current_pa
                 for (uint32_t off : {0xFCu, 0xF8u}) {
                     uint32_t widget = X86_MEM32(holder + off);
                     dbg_widget[widget_slot] = widget;
-                    if (widget >= 0x80000000u && widget < mem::PhysicalEnd()) {
+                    if (widget >= 0x80000000u && widget < mem::PhysicalEnd() && readable(widget, 0x304)) {
                         uint32_t s = X86_MEM32(widget + 0x300);
                         uint8_t f = X86_MEM8(widget + 0x44);
                         int32_t c = static_cast<int32_t>(X86_MEM32(widget + 0x25C)); // Cursor selected row index
@@ -237,8 +272,10 @@ static void UpdateLiveUiState(uint32_t state, uint8_t* base, uint32_t current_pa
             last_log_fmv = is_fmv ? 1 : 0;
             last_log_state = state;
         }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
+#ifdef _WIN32
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
+#endif
 }
 
 void Mc3Pad(int port, input::Pad& pad) {
@@ -252,6 +289,7 @@ void Mc3Pad(int port, input::Pad& pad) {
             if (g_live_ui_state->automation_ly) pad.ly = int16_t(g_live_ui_state->automation_ly);
         }
         UpdateLiveUiState(~0u, mem::Base(), pad.buttons);
+        Mc3OrbitPad(port, pad);
     }
 }
 
@@ -281,10 +319,22 @@ void Mc3MainLoopPadProbe(X86Context& ctx, uint8_t* base) {
         last_movie = movie;
     }
 
-    auto down = [](int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; };
+    auto down = [](int key) {
+#if XBE_LINUX_WINDOW
+        if (std::getenv("MC3_INPUT_SCRIPT")) return false;
+#endif
+        return (GetAsyncKeyState(key) & 0x8000) != 0;
+    };
     uint32_t current = 0;
     if (down(VK_SPACE)) current |= 0x800;                // Start
     if (down(VK_RETURN) || down('Z')) current |= 0x40;  // A
+#if XBE_LINUX_WINDOW
+    // The pre-game state machine predates XInput polling. Include SDL pads and
+    // replay input here too, otherwise controllers cannot dismiss the intro.
+    const auto host_pad = input::Poll(0);
+    if (host_pad.buttons & (1u << 4)) current |= 0x800;
+    if (host_pad.analog[0]) current |= 0x40;
+#endif
     if (g_live_ui_state && g_live_ui_state->frame_counter <= g_live_ui_state->automation_until_frame) {
         if (g_live_ui_state->automation_buttons & (1u << 4)) current |= 0x800;
         if (g_live_ui_state->automation_a) current |= 0x40;

@@ -5,7 +5,11 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -48,6 +52,14 @@ void Load() {
     s.render_percent = t["render_percent"].value_or(s.render_percent);
     s.fps_cap = t["fps_cap"].value_or(s.fps_cap);
     s.vsync = t["vsync"].value_or(s.vsync);
+    s.motion_blur = t["motion_blur"].value_or(s.motion_blur);
+    s.light_streaks = t["light_streaks"].value_or(s.light_streaks);
+    s.camera_orbit = t["camera_orbit"].value_or(s.camera_orbit);
+    s.road_shine = t["road_shine"].value_or(s.road_shine);
+    s.linux_renderer = t["linux_renderer"].value_or(s.linux_renderer);
+    s.render_height = std::clamp(t["render_height"].value_or(s.render_height), 480u, 2160u);
+    s.fps_cap = std::min(s.fps_cap, 1000u);
+    s.width = std::min(s.width, 7680u); s.height = std::min(s.height, 4320u);
     s.aniso = t["anisotropic_filtering"].value_or(s.aniso);
     s.join_ip = t["join_ip"].value_or(s.join_ip);
     s.render_profile = t["render_profile"].value_or(s.render_profile);
@@ -78,6 +90,12 @@ toml::table Table() {
                   {"render_percent", int64_t(s.render_percent)},
                   {"fps_cap", int64_t(s.fps_cap)},
                   {"vsync", s.vsync},
+                  {"motion_blur", s.motion_blur},
+                  {"light_streaks", s.light_streaks},
+                  {"road_shine", s.road_shine},
+                  {"camera_orbit", s.camera_orbit},
+                  {"linux_renderer", s.linux_renderer},
+                  {"render_height", int64_t(s.render_height)},
                   {"anisotropic_filtering", int64_t(s.aniso)},
                   {"join_ip", s.join_ip},
                   {"render_profile", s.render_profile.empty() ? std::string("legacy") : s.render_profile},
@@ -116,6 +134,7 @@ void LogSettings() {
 }
 
 Mode Desktop() {
+#ifdef _WIN32
     HMONITOR mon = MonitorFromWindow(static_cast<HWND>(Window()), MONITOR_DEFAULTTOPRIMARY);
     MONITORINFOEXW mi{};
     mi.cbSize = sizeof(mi);
@@ -124,6 +143,10 @@ Mode Desktop() {
     if (GetMonitorInfoW(mon, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_REGISTRY_SETTINGS, &dm))
         return {dm.dmPelsWidth, dm.dmPelsHeight};
     return {uint32_t(GetSystemMetrics(SM_CXSCREEN)), uint32_t(GetSystemMetrics(SM_CYSCREEN))};
+#else
+    const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+    return mode ? Mode{uint32_t(mode->w), uint32_t(mode->h)} : Mode{1280, 720};
+#endif
 }
 
 Mode Output() {

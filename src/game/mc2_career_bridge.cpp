@@ -107,7 +107,7 @@ void CareerBridgeInit() {
     }
     if (const wchar_t* stage = Mc3DebugArg(L"--mc3-mc2-stage")) {
         g_debug_stage_override = true;
-        g_debug_stage_value = _wtoi(stage);
+        g_debug_stage_value = int(std::wcstol(stage, nullptr, 10));
         LOGE("MC2 Career Bridge: debug stage override active = %d", g_debug_stage_value);
     }
 }

@@ -27,3 +27,5 @@ uint32_t Mc3DebugFindVehicleOwnerByVtable(uint32_t vtable, uint32_t* vehicle_mat
                                          uint32_t* second_offset = nullptr,
                                          uint32_t* object_count = nullptr);
 
+
+uint32_t Mc3DebugPlayerMatrix();

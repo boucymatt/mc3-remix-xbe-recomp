@@ -6,13 +6,16 @@
 #include "game/debug_tools.h"
 #include "kernel/kernel.h"
 
+#ifdef _WIN32
 #include <windows.h>
 #include <dbghelp.h>
 #include <tlhelp32.h>
+#endif
 
 #include <cstdint>
 #include <cwchar>
 
+#ifdef _WIN32
 #pragma comment(lib, "dbghelp.lib")
 
 namespace {
@@ -98,3 +101,12 @@ void Mc3WriteWatchStart(uint8_t* base) {
     if (HANDLE thread = CreateThread(nullptr, 0, ArmThreads, nullptr, 0, nullptr)) CloseHandle(thread);
     LOGE("MC3WATCH armed va=%08X host=%llX", g_watch_va, static_cast<unsigned long long>(g_watch_host));
 }
+#else
+void Mc3WriteWatchStart(uint8_t* base) {
+    static bool reported = false;
+    if (reported || !base) return;
+    reported = true;
+    if (Mc3DebugArg(L"--mc3-write-watch"))
+        LOGE("MC3WATCH: --mc3-write-watch is only supported on Windows");
+}
+#endif

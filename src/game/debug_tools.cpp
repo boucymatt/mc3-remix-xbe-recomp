@@ -9,13 +9,18 @@
 #include <chrono>
 #include <cmath>
 #include <cwchar>
+#ifndef _WIN32
+#include <fstream>
+#endif
 #include <string>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#ifdef _WIN32
 #include <shellapi.h>
+#endif
 
 #include "core/log.h"
 #include "kernel/memory.h"
@@ -86,12 +91,24 @@ bool Pressed(int key) {
 }
 
 void ReadArgs() {
-    if (!g_args.empty()) return;
+    static bool read = false;
+    if (read) return;
+    read = true;
+#ifdef _WIN32
     int argc = 0;
     wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (!argv) return;
     for (int i = 1; i < argc; ++i) g_args.emplace_back(argv[i]);
     LocalFree(argv);
+#else
+    // Linux exposes the original arguments with NUL separators, so spaces in
+    // an argument remain intact. Debug switches and their values are ASCII.
+    std::ifstream command_line("/proc/self/cmdline", std::ios::binary);
+    std::string arg;
+    std::getline(command_line, arg, '\0');  // executable name
+    while (std::getline(command_line, arg, '\0'))
+        g_args.emplace_back(arg.begin(), arg.end());
+#endif
 }
 
 float FloatArg(const wchar_t* key, float fallback) {
@@ -555,3 +572,5 @@ void Mc3DebugTransform(uint32_t type, float* matrix) {
     // itself to MC2 Career and throttles duplicate views from the same frame.
     mc2::UpdateHookmanBridgeHost();
 }
+
+uint32_t Mc3DebugPlayerMatrix() { return PlayerMatrixFromGame(); }

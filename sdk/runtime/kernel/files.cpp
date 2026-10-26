@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "gpu/render_profile.h"
+#include "app/app.h"
 #include "kernel/disc.h"
 #include "kernel/kernel.h"
 #include "kernel/exports.h"
@@ -474,7 +475,11 @@ static uint64_t Offset(File& f, uint32_t off) {
 // tiny sidecar generated from the user's own archive and substitute its one
 // compressed tune entry in guest memory; the archive on disk stays unchanged.
 static void ReplaceMotionBlurTune(const File& f, uint64_t pos, uint32_t buf, uint32_t n) {
-    if (!gpu::render::On(gpu::render::kMotionBlur) || f.entry || !n ||
+    bool replace = gpu::render::On(gpu::render::kMotionBlur);
+#if XBE_LINUX_WINDOW
+    replace = !app::Get().motion_blur;
+#endif
+    if (!replace || f.entry || !n ||
         Upper(f.host.filename().string()) != "ASSETS_X.DAT") return;
     struct Override {
         bool loaded = false, valid = false, logged = false;
@@ -524,6 +529,69 @@ static void ReplaceMotionBlurTune(const File& f, uint64_t pos, uint32_t buf, uin
     }
 }
 
+#if XBE_LINUX_WINDOW
+// Replace only the city's road-shininess tuning, including weather variants.
+// Original bytes are verified before applying any sidecar data to guest reads.
+static void ReplaceRoadTune(const File& f, uint64_t pos, uint32_t buf, uint32_t n) {
+    if (app::Get().road_shine || f.entry || !n || Upper(f.host.filename().string()) != "ASSETS_X.DAT") return;
+    struct Patch {
+        uint64_t offset = 0;
+        std::vector<uint8_t> original, replacement;
+        bool logged = false;
+    };
+    static std::mutex lock;
+    static fs::path source;
+    static std::vector<Patch> patches;
+    std::lock_guard guard(lock);
+    if (source != f.host) {
+        source = f.host;
+        patches.clear();
+        std::ifstream sidecar(f.host.parent_path() / "mc3_road_override.bin", std::ios::binary);
+        std::ifstream archive(f.host, std::ios::binary);
+        char magic[5]{};
+        uint32_t count = 0;
+        bool valid = sidecar.read(magic, 5) && std::memcmp(magic, "MC3R1", 5) == 0 &&
+            sidecar.read(reinterpret_cast<char*>(&count), 4) && count > 0 && count <= 256;
+        std::vector<Patch> loaded;
+        uint64_t previous_end = 0;
+        for (uint32_t i = 0; valid && i < count; ++i) {
+            Patch p;
+            uint32_t size = 0;
+            valid = sidecar.read(reinterpret_cast<char*>(&p.offset), 8) &&
+                sidecar.read(reinterpret_cast<char*>(&size), 4) && size > 0 && size <= 65536 &&
+                p.offset >= previous_end && p.offset <= uint64_t(INT64_MAX) - size;
+            if (!valid) break;
+            p.original.resize(size); p.replacement.resize(size);
+            std::vector<uint8_t> actual(size);
+            archive.seekg(std::streamoff(p.offset));
+            valid = sidecar.read(reinterpret_cast<char*>(p.original.data()), size) &&
+                sidecar.read(reinterpret_cast<char*>(p.replacement.data()), size) &&
+                archive.read(reinterpret_cast<char*>(actual.data()), size) && actual == p.original;
+            previous_end = p.offset + size;
+            loaded.push_back(std::move(p));
+        }
+        if (valid) patches = std::move(loaded);
+        else LOGW("Linux dry roads: tune sidecar absent or invalid; run build.sh to regenerate it");
+    }
+    for (auto& p : patches) {
+        uint64_t start = std::max(pos, p.offset), end = std::min(pos + n, p.offset + p.original.size());
+        if (start >= end) continue;
+        const size_t at = size_t(start - p.offset), length = size_t(end - start);
+        auto* dst = HostPtr(buf + uint32_t(start - pos));
+        if (std::memcmp(dst, p.original.data() + at, length) != 0) {
+            LOGW("Linux dry roads: archive read differs from verified tune; leaving it unchanged");
+            continue;
+        }
+        std::memcpy(dst, p.replacement.data() + at, length);
+        if (!p.logged) {
+            p.logged = true;
+            LOGR("Linux dry roads: applied road-shininess tune at archive offset %llu (archive unchanged)",
+                 (unsigned long long)p.offset);
+        }
+    }
+}
+#endif
+
 // pages is the FILE_SEGMENT_ELEMENT array for scatter and gather, 0 for one buffer
 static uint32_t Transfer(const Args& a, bool write, uint32_t pages) {
     uint32_t h = a[0], event = a[1], apc = a[2], apc_ctx = a[3], iosb = a[4], buf = a[5], len = a[6], off = a[7];
@@ -541,6 +609,9 @@ static uint32_t Transfer(const Args& a, bool write, uint32_t pages) {
         size_t done = f->entry ? MountedDisc()->Read(*f->entry, pos + n, HostPtr(at), chunk)
                       : write  ? std::fwrite(HostPtr(at), 1, chunk, f->fp)
                                : std::fread(HostPtr(at), 1, chunk, f->fp);
+#if XBE_LINUX_WINDOW
+        if (!write && done) ReplaceRoadTune(*f, pos + n, at, uint32_t(done));
+#endif
         n += uint32_t(done);
         if (done < chunk) break;
     }

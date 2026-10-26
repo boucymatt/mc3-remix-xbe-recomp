@@ -2,17 +2,18 @@
 
 What you need before running `build.bat`. Run `.\build.bat check` at any time: it looks for everything in sections 1 to 3
 and tells you what is missing, without building anything.
+For native Linux, use the [Linux requirements](#linux-native-build) below and `./build.sh check`.
 
 ## At a glance
 
 | | What | Why | Section |
 | --- | --- | --- | --- |
 | 1 | **Your own copy of the game**: Midnight Club 3: DUB Edition for the original Xbox, extracted to `assets\` | The port is built from, and runs on, your game files. None are provided. | [1](#1-the-game) |
-| 2 | **Windows 10 or 11, 64-bit** | Builds and runs on Windows only (Direct3D 12, XAudio2). | [2](#2-windows-and-hardware) |
+| 2 | **Windows 10 or 11, 64-bit** | The interactive game uses Direct3D 12 and XAudio2. Linux uses SDL3 and OpenGL. | [2](#2-windows-and-hardware) |
 | 3 | **Visual Studio 2022** with the C++ workload, the Clang tools and the CMake tools | The compiler (clang, lld), CMake, Ninja, the Windows SDK. | [3](#3-build-tools) |
-| 4 | **Git** | CMake downloads four libraries with it. | [3](#3-build-tools) |
+| 4 | **Git** | CMake downloads four libraries on Windows, three on native Linux. | [3](#3-build-tools) |
 | 5 | **Python 3.9 or newer** | Reads two small things out of your game files. Standard library only. | [3](#3-build-tools) |
-| 6 | **An internet connection** during the first build | The four libraries come from GitHub. | [4](#4-downloaded-by-cmake) |
+| 6 | **An internet connection** during the first build | Dependencies come from GitHub. | [4](#4-downloaded-by-cmake) |
 | 7 | **Disk space and memory** | The recompiled game is large. | [6](#6-build-resources) |
 
 ## 1. The game
@@ -67,10 +68,35 @@ clone and contribute.
 [Python 3.9 or newer](https://www.python.org/downloads/), with "Add python.exe to PATH" ticked (the `py -3` launcher also
 works). Only the standard library is used. Developed on 3.12.
 
+## Linux native build
+
+* **x86-64-v2 Linux**, Bash, Clang with C++20 standard library headers, CMake 3.25+, Ninja, Git, Python 3.9+, pkg-config.
+* **SDL3 >= 3.2**, **libepoxy**, **shaderc**, and **Vulkan 1.3 headers/loader**, including development headers and pkg-config files.
+* An **OpenGL 4.5** capable graphics driver, or **Vulkan 1.3** for the optional native Vulkan backend. The runtime uses the system SDL audio device (PipeWire/PulseAudio/ALSA).
+* Your supported `assets/default.xbe`, `assets/assets_x.dat_2`, and the rest of the extracted game for playing.
+* Internet access during the first configure for pinned Zydis, toml++ and SPIRV-Cross dependencies.
+
+On Arch Linux the development packages are included with the libraries:
+
+```sh
+sudo pacman -S --needed clang cmake ninja git python pkgconf sdl3 libepoxy shaderc vulkan-headers vulkan-icd-loader
+./build.sh check
+./build.sh
+./run.sh
+```
+
+The default `linux-release` preset produces `out/build/linux-release/MC3RemixXBE`. `check` verifies prerequisites
+without downloading, generating or compiling. Set `XBE_BUILD_JOBS` to a positive integer to override the default
+CPU count capped at 8 jobs. Generated code and executable contents are derived from your game and stay local.
+
+The optional `./build.sh headless` target uses the `linux-headless` preset and needs only Clang, CMake, Ninja, Git and
+Python plus the owned game files. It fetches Zydis and toml++ only, and provides no window/audio/live input.
+
 ## 4. Downloaded by CMake
 
-You install nothing here. CMake fetches these with git the first time it configures the build (into `out\build\release\_deps`),
-so the first build needs internet access to `github.com`:
+You install nothing here. CMake fetches these with git the first time it configures the Windows build (into
+`out\build\release\_deps`). Native Linux fetches Zydis, toml++ and SPIRV-Cross into `out/build/linux-release/_deps`, and links system SDL3, libepoxy, shaderc and Vulkan. The headless preset fetches only Zydis and toml++.
+The first build needs internet access to `github.com`:
 
 | Library | Pinned to | Used for |
 | --- | --- | --- |
@@ -78,6 +104,7 @@ so the first build needs internet access to `github.com`:
 | [toml++](https://github.com/marzer/tomlplusplus) | `v3.4.0` | reading the configs |
 | [Dear ImGui](https://github.com/ocornut/imgui) | `v1.91.0` | the settings overlay |
 | [SDL](https://github.com/libsdl-org/SDL) | `release-3.4.16` | the window, input and controllers |
+| [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) (Linux) | `5d127b917f080c6f052553c47170ec0ba702e54f` | translating console shaders to OpenGL GLSL |
 
 The pins are in `sdk\cmake\XbeRecomp.cmake`. Their licences are in `sdk\THIRD_PARTY.txt`.
 
@@ -91,7 +118,7 @@ Also needed if you send changes (see `CONTRIBUTING.md`):
 ## 6. Build resources
 
 The first build recompiles the whole game: it turns `default.xbe` into 133 C++ files of about 1.5 to 2 MB each and
-compiles them. Measured on a clean clone, with 48 parallel compile jobs:
+compiles them. The following measurements are from Windows on a clean clone, with 48 parallel compile jobs:
 
 | | Measured |
 | --- | --- |

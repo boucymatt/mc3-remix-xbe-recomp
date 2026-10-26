@@ -16,5 +16,8 @@ void Init();  // window thread, before boot
 Pad Poll(int port);
 void Rumble(int port, uint16_t left, uint16_t right);
 void OnKey(uint32_t vk, bool down);
+// SDL window hosts pump device events on their main thread.
+void OnDevice(uint32_t id, bool added);
+bool KeyDown(int vk);
 
 }  // namespace input

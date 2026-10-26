@@ -36,9 +36,12 @@
 #include "core/log.h"
 #include "cpu/x86_context.h"
 #include "cpu/x86_ops.h"
+#ifndef _WIN32
+#include <windows.h>  // harness key constants and CRT compatibility
+#else
 #include "gpu/ext.h"
-
 #include <d3dcompiler.h>
+#endif
 #include "kernel/kernel.h"
 #include "kernel/memory.h"
 #include "xdk/d3d8.h"
@@ -111,7 +114,9 @@ X86_EXTERN_FUNC(__imp__sub_00083E60);
 
 namespace {
 namespace fs = std::filesystem;
+#ifdef _WIN32
 using Microsoft::WRL::ComPtr;
+#endif
 
 std::atomic<bool> g_mc2_city_first_draw_ready{false};
 
@@ -632,6 +637,7 @@ float EnvFloat(const char* name, float def) {
     return v && *v ? std::strtof(v, nullptr) : def;
 }
 
+#ifdef _WIN32
 class Mc2City final : public gpu::Extension {
 public:
     explicit Mc2City(fs::path root) : root_(std::move(root)) {
@@ -1100,6 +1106,7 @@ private:
     int loaded_city_ = -1;
     std::vector<ComPtr<ID3D12DescriptorHeap>> old_heaps_;  // retired on a city switch (at most a few)
 };
+#endif
 
 // on only when MC3_MC2_DIR names MC2's assets_p, the user's own files; there is no default folder
 fs::path Mc2Dir() {
@@ -1115,8 +1122,13 @@ fs::path Mc2Dir() {
 const bool g_enabled = [] {
     fs::path p = Mc2Dir();
     if (p.empty()) return false;
+#ifndef _WIN32
+    LOGE("MC2 city: the D3D12 city renderer is unavailable on the Linux renderer");
+    return false;
+#else
     gpu::SetExtension(std::make_unique<Mc2City>(p));
     return true;
+#endif
 }();
 
 constexpr uint32_t kCities = 0x557EE4;      // record 0 (after the new[] count)
